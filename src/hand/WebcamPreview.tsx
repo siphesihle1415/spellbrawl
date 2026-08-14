@@ -17,6 +17,10 @@ function drawHands(canvas: HTMLCanvasElement, hands: Landmark[][], label: string
   if (!ctx) return;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+  // Mirror landmark x-coordinates here (rather than CSS-transforming the whole canvas)
+  // so the skeleton matches the selfie-view video without also flipping the label text.
+  const mirroredX = (x: number) => canvas.width - x * canvas.width;
+
   for (const hand of hands) {
     ctx.strokeStyle = "#4fd1c5";
     ctx.lineWidth = 2;
@@ -24,22 +28,29 @@ function drawHands(canvas: HTMLCanvasElement, hands: Landmark[][], label: string
       const a = hand[start];
       const b = hand[end];
       ctx.beginPath();
-      ctx.moveTo(a.x * canvas.width, a.y * canvas.height);
-      ctx.lineTo(b.x * canvas.width, b.y * canvas.height);
+      ctx.moveTo(mirroredX(a.x), a.y * canvas.height);
+      ctx.lineTo(mirroredX(b.x), b.y * canvas.height);
       ctx.stroke();
     }
     for (const point of hand) {
       ctx.fillStyle = "#f6e05e";
       ctx.beginPath();
-      ctx.arc(point.x * canvas.width, point.y * canvas.height, 3, 0, Math.PI * 2);
+      ctx.arc(mirroredX(point.x), point.y * canvas.height, 3, 0, Math.PI * 2);
       ctx.fill();
     }
   }
 
   if (label) {
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "16px sans-serif";
-    ctx.fillText(label, 10, 20);
+    ctx.font = "bold 28px sans-serif";
+    ctx.textAlign = "center";
+    const x = canvas.width / 2;
+    const y = canvas.height - 24;
+    ctx.strokeStyle = "#000000a0";
+    ctx.lineWidth = 4;
+    ctx.strokeText(label, x, y);
+    ctx.fillStyle = "#f6e05e";
+    ctx.fillText(label, x, y);
+    ctx.textAlign = "left";
   }
 }
 
@@ -108,7 +119,7 @@ export function WebcamPreview({
   return (
     <section className="camera-card">
       <div className="camera-frame">
-        <video ref={videoRef} muted playsInline aria-label="Local webcam preview" />
+        <video ref={videoRef} muted playsInline aria-label="Local webcam feed (hidden)" className="camera-feed-hidden" />
         <canvas ref={canvasRef} width={640} height={480} className="hand-overlay" />
         {status !== "tracking" && (
           <button type="button" onClick={enableCamera} disabled={status === "starting"}>
