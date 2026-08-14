@@ -1,13 +1,62 @@
-import { FilesetResolver, HandLandmarker } from "@mediapipe/tasks-vision";
 import { useEffect, useRef, useState } from "react";
 import type { Gesture } from "../game/types";
-import { TemporalGestureRecognizer, type GestureObservation } from "./gestureRecognition";
+import type { Landmark, PoseResult } from "./gestureClassifier";
+import { MediaPipeGestureSource } from "./MediaPipeGestureSource";
 
-type TrackingStatus = "idle" | "starting" | "loading" | "tracking" | "blocked" | "error";
+type TrackingStatus = "idle" | "starting" | "tracking" | "blocked" | "error";
 
-const WASM_PATH = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm";
-const MODEL_PATH = "/models/hand_landmarker.task";
 const CAMERA_REQUEST_TIMEOUT_MS = 8_000;
+
+const HAND_CONNECTIONS: Array<[number, number]> = [
+  [0, 1], [1, 2], [2, 3], [3, 4],
+  [0, 5], [5, 6], [6, 7], [7, 8],
+  [0, 9], [9, 10], [10, 11], [11, 12],
+  [0, 13], [13, 14], [14, 15], [15, 16],
+  [0, 17], [17, 18], [18, 19], [19, 20],
+  [5, 9], [9, 13], [13, 17],
+];
+
+function drawHands(canvas: HTMLCanvasElement, hands: Landmark[][], label: string | null) {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Mirror landmark x-coordinates here (rather than CSS-transforming the whole canvas)
+  // so the skeleton matches the selfie-view video without also flipping the label text.
+  const mirroredX = (x: number) => canvas.width - x * canvas.width;
+
+  for (const hand of hands) {
+    ctx.strokeStyle = "#8d69ff";
+    ctx.lineWidth = 2;
+    for (const [start, end] of HAND_CONNECTIONS) {
+      const a = hand[start];
+      const b = hand[end];
+      ctx.beginPath();
+      ctx.moveTo(mirroredX(a.x), a.y * canvas.height);
+      ctx.lineTo(mirroredX(b.x), b.y * canvas.height);
+      ctx.stroke();
+    }
+    for (const point of hand) {
+      ctx.fillStyle = "#ff9a66";
+      ctx.beginPath();
+      ctx.arc(mirroredX(point.x), point.y * canvas.height, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  if (label) {
+    ctx.font = "bold 22px sans-serif";
+    ctx.textAlign = "center";
+    const x = canvas.width / 2;
+    const y = canvas.height - 16;
+    ctx.strokeStyle = "#000000a0";
+    ctx.lineWidth = 4;
+    ctx.strokeText(label, x, y);
+    ctx.fillStyle = "#f6e05e";
+    ctx.fillText(label, x, y);
+    ctx.textAlign = "left";
+  }
+}
 
 const requestCamera = async () => {
   if (!navigator.mediaDevices?.getUserMedia) {
@@ -43,50 +92,22 @@ const requestCamera = async () => {
 
 export function WebcamPreview({ onGesture }: { onGesture: (gesture: Gesture, confidence: number) => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const landmarkerRef = useRef<HandLandmarker | undefined>(undefined);
-  const frameRef = useRef<number | undefined>(undefined);
-  const lastInferenceRef = useRef(0);
-  const lastVideoTimeRef = useRef(-1);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const sourceRef = useRef<MediaPipeGestureSource | null>(null);
   const runIdRef = useRef(0);
-  const callbackRef = useRef(onGesture);
-  const recognizerRef = useRef(new TemporalGestureRecognizer());
   const [status, setStatus] = useState<TrackingStatus>("idle");
-  const [observation, setObservation] = useState<GestureObservation>({ confidence: 0, stability: 0, handCount: 0 });
+  const [pose, setPose] = useState<PoseResult | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
-
-  callbackRef.current = onGesture;
 
   useEffect(() => {
     return () => {
       runIdRef.current += 1;
-      if (frameRef.current) cancelAnimationFrame(frameRef.current);
-      landmarkerRef.current?.close();
-      landmarkerRef.current = undefined;
+      sourceRef.current?.stop();
+      sourceRef.current = null;
       const stream = videoRef.current?.srcObject;
       if (stream instanceof MediaStream) stream.getTracks().forEach((track) => track.stop());
     };
   }, []);
-
-  const track = () => {
-    const video = videoRef.current;
-    const landmarker = landmarkerRef.current;
-    if (!video || !landmarker) return;
-
-    const at = performance.now();
-    if (
-      video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
-      video.currentTime !== lastVideoTimeRef.current &&
-      at - lastInferenceRef.current >= 50
-    ) {
-      lastInferenceRef.current = at;
-      lastVideoTimeRef.current = video.currentTime;
-      const result = landmarker.detectForVideo(video, at);
-      const next = recognizerRef.current.update(result.landmarks, at);
-      setObservation(next);
-      if (next.confirmed) callbackRef.current(next.confirmed, next.confidence);
-    }
-    frameRef.current = requestAnimationFrame(track);
-  };
 
   const enableCamera = async () => {
     const runId = ++runIdRef.current;
@@ -105,33 +126,24 @@ export function WebcamPreview({ onGesture }: { onGesture: (gesture: Gesture, con
         stream.getTracks().forEach((track) => track.stop());
         return;
       }
-      setStatus("loading");
-      const vision = await FilesetResolver.forVisionTasks(WASM_PATH);
-      if (runId !== runIdRef.current) {
-        stream.getTracks().forEach((track) => track.stop());
-        return;
-      }
-      const landmarker = await HandLandmarker.createFromOptions(vision, {
-        baseOptions: { modelAssetPath: MODEL_PATH, delegate: "CPU" },
-        runningMode: "VIDEO",
-        numHands: 2,
-        minHandDetectionConfidence: 0.55,
-        minHandPresenceConfidence: 0.55,
-        minTrackingConfidence: 0.55,
+
+      const canvas = canvasRef.current;
+      const source = new MediaPipeGestureSource(videoRef.current, {
+        onFrame: (hands, poseResult) => {
+          setPose(poseResult);
+          if (canvas) drawHands(canvas, hands, poseResult?.gesture.replaceAll("_", " ") ?? null);
+        },
       });
+      sourceRef.current = source;
+      await source.start((confirmed) => onGesture(confirmed.gesture, confirmed.confidence));
       if (runId !== runIdRef.current) {
-        landmarker.close();
-        stream.getTracks().forEach((track) => track.stop());
+        source.stop();
         return;
       }
-      landmarkerRef.current?.close();
-      landmarkerRef.current = landmarker;
-      recognizerRef.current.reset();
-      lastInferenceRef.current = 0;
-      lastVideoTimeRef.current = -1;
       setStatus("tracking");
-      frameRef.current = requestAnimationFrame(track);
     } catch (error) {
+      sourceRef.current?.stop();
+      sourceRef.current = null;
       stream?.getTracks().forEach((track) => track.stop());
       if (runId !== runIdRef.current) return;
       const permissionBlocked = error instanceof DOMException && (error.name === "NotAllowedError" || error.name === "PermissionDeniedError");
@@ -148,46 +160,42 @@ export function WebcamPreview({ onGesture }: { onGesture: (gesture: Gesture, con
   };
 
   const statusText = status === "tracking"
-    ? observation.gesture
-      ? `${observation.gesture.replaceAll("_", " ")} · ${Math.round(observation.confidence * 100)}% confidence`
-      : observation.handCount > 0 ? "Hand found · hold a gesture steady" : "Show your hand to cast"
-    : status === "loading" ? "Loading the hand landmark model…" : "Keyboard gestures are active.";
+    ? pose
+      ? `${pose.gesture.replaceAll("_", " ")} · ${Math.round(pose.confidence * 100)}% confidence`
+      : "Show your hand to cast"
+    : status === "starting" ? "Starting camera and loading hand model…" : "Keyboard gestures are active.";
 
   return (
     <section className="rounded-[15px] border border-[#2e2440] bg-[#100c19cc] p-[11px] min-[561px]:col-span-2 min-[901px]:col-auto">
-      <video ref={videoRef} className="pointer-events-none fixed size-px opacity-0" muted playsInline aria-hidden="true" />
-      <div className="grid min-h-[72px] gap-2.5 rounded-[10px] bg-linear-to-br from-[#181225] to-[#0b0910] p-2.5">
-        <div className="flex items-center justify-between">
-          <span className="font-display text-xs">
-            <i className={`mr-[7px] inline-block size-[7px] rounded-full ${
-              status === "tracking"
-                ? "bg-[#60e9a2] shadow-[0_0_8px_#60e9a2]"
-                : status === "blocked" || status === "error"
-                  ? "bg-[#ff645c]"
-                  : status === "loading" || status === "starting"
-                    ? "bg-[#f7b955] shadow-[0_0_8px_#f7b955]"
-                    : "bg-[#695f77]"
-            }`} /> Hand tracking
-          </span>
-          <small className="text-[0.62rem] text-[#81738f]">{status === "tracking" ? "Active" : "Local input"}</small>
-        </div>
-        {(status === "idle" || status === "blocked" || status === "error") && (
-          <button className="cursor-pointer justify-self-start rounded-lg border border-[#57466f] bg-[#171020] px-[11px] py-2 text-[#e7ddf7]" type="button" onClick={enableCamera}>
-            {status === "idle" ? "Grant camera access" : "Retry hand tracking"}
+      <div className="relative aspect-video overflow-hidden rounded-[10px] bg-linear-to-br from-[#181225] to-[#0b0910]">
+        <video ref={videoRef} muted playsInline aria-hidden="true" className="absolute inset-0 size-full object-cover opacity-0" />
+        <canvas ref={canvasRef} width={640} height={480} className="pointer-events-none absolute inset-0 size-full" />
+        {status !== "tracking" && (
+          <button
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-lg border border-[#57466f] bg-[#171020] px-[11px] py-2 whitespace-nowrap text-[#e7ddf7]"
+            type="button"
+            onClick={enableCamera}
+            disabled={status === "starting"}
+          >
+            {status === "idle" ? "Grant camera access" : status === "starting" ? "Starting…" : "Retry hand tracking"}
           </button>
         )}
-        {status === "starting" && <div className="text-[0.68rem] tracking-[0.08em] text-[#c5b5dd] uppercase">Requesting camera access…</div>}
-        {status === "loading" && <div className="text-[0.68rem] tracking-[0.08em] text-[#c5b5dd] uppercase">Loading hand model…</div>}
-        {status === "tracking" && observation.gesture && (
-          <div className="flex items-center gap-[9px] rounded-lg border border-[#604a7b] bg-[#0c0816d9] px-[9px] py-[7px]">
-            <strong className="shrink-0 text-[0.61rem] tracking-[0.09em]">{observation.gesture.replaceAll("_", " ")}</strong>
-            <span className="h-[3px] flex-1 overflow-hidden rounded-[5px] bg-[#332743]">
-              <i className="block h-full bg-linear-to-r from-[#8d69ff] to-[#ff9a66] transition-[width] duration-75" style={{ width: `${observation.stability * 100}%` }} />
-            </span>
-          </div>
-        )}
       </div>
-      <p className="mx-0.5 mt-2 mb-px text-[0.68rem] text-[#9387a5]">
+      <div className="mt-2 flex items-center justify-between">
+        <span className="font-display text-xs">
+          <i className={`mr-[7px] inline-block size-[7px] rounded-full ${
+            status === "tracking"
+              ? "bg-[#60e9a2] shadow-[0_0_8px_#60e9a2]"
+              : status === "blocked" || status === "error"
+                ? "bg-[#ff645c]"
+                : status === "starting"
+                  ? "bg-[#f7b955] shadow-[0_0_8px_#f7b955]"
+                  : "bg-[#695f77]"
+          }`} /> Hand tracking
+        </span>
+        <small className="text-[0.62rem] text-[#81738f]">{status === "tracking" ? "Active" : "Local input"}</small>
+      </div>
+      <p className="mx-0.5 mt-1 mb-px text-[0.68rem] text-[#9387a5]">
         {errorMessage || statusText}
       </p>
     </section>
