@@ -1,0 +1,73 @@
+@import url("https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600&display=swap");
+
+:root {
+  font-family: Inter, system-ui, sans-serif;
+  color: #f4efff;
+  background: #08060f;
+  font-synthesis: none;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; background: radial-gradient(circle at 50% -20%, #24153e, #08060f 48%); }
+button { font: inherit; }
+
+main { width: min(1500px, 100%); margin: 0 auto; padding: 20px; }
+.topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+.eyebrow { margin: 0 0 2px; color: #9d90bd; font-size: 0.68rem; letter-spacing: 0.17em; text-transform: uppercase; }
+h1, h2 { font-family: Cinzel, Georgia, serif; }
+h1 { margin: 0; font-size: clamp(1.7rem, 4vw, 2.8rem); letter-spacing: -0.06em; }
+h1 span { color: #ff7758; }
+.room-chip { border: 1px solid #3c3053; background: #141020cc; border-radius: 999px; padding: 10px 14px; font-size: 0.75rem; letter-spacing: 0.08em; }
+.room-chip span { display: inline-block; width: 7px; height: 7px; margin-right: 8px; border-radius: 50%; background: #70efb0; box-shadow: 0 0 10px #70efb0; }
+
+.game-shell { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; }
+.arena-wrap { min-height: 690px; position: relative; overflow: hidden; border: 1px solid #2b2140; border-radius: 20px; background: #0a0711; box-shadow: 0 25px 80px #0008; }
+.arena-wrap canvas { position: absolute !important; inset: 0; }
+.round-label, .party-health { position: absolute; z-index: 2; top: 20px; border: 1px solid #392e4c; background: #0c0915cc; backdrop-filter: blur(8px); border-radius: 999px; padding: 9px 12px; font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.round-label { left: 20px; }
+.party-health { right: 20px; color: #e5b6ff; }
+.enemy-hud { position: absolute; z-index: 2; top: 72px; left: 50%; width: min(380px, 70%); transform: translateX(-50%); text-align: center; }
+.enemy-hud small { color: #b8a8d2; letter-spacing: 0.15em; text-transform: uppercase; }
+.enemy-hud h2 { margin: 3px 0 10px; font-size: clamp(1.4rem, 3vw, 2.2rem); }
+.enemy-hud p { margin: 5px; color: #ac9dbf; font-size: 0.7rem; text-transform: uppercase; }
+.health-track { height: 7px; padding: 1px; border: 1px solid #6c567e; background: #110d19; border-radius: 9px; }
+.health-track span { display: block; height: 100%; border-radius: 7px; background: linear-gradient(90deg, #ff554a, #ffb14a); transition: width 280ms ease; }
+.message-banner { position: absolute; z-index: 2; left: 50%; bottom: 24px; transform: translateX(-50%); width: min(700px, calc(100% - 40px)); padding: 13px 20px; text-align: center; color: #ded4ef; background: #0c0915df; border: 1px solid #3b2d50; border-radius: 12px; backdrop-filter: blur(10px); font-size: 0.88rem; }
+.overlay { position: absolute; z-index: 5; inset: 0; display: grid; place-content: center; text-align: center; background: radial-gradient(circle, #160f27aa, #08060fef 70%); }
+.overlay p { margin: 0; color: #b7a6d1; letter-spacing: 0.15em; text-transform: uppercase; font-size: 0.7rem; }
+.overlay h2 { margin: 8px 0 22px; font-size: clamp(2.4rem, 7vw, 5rem); }
+.overlay button { justify-self: center; border: 1px solid #ff9a6a; border-radius: 999px; padding: 12px 22px; color: #180b11; background: linear-gradient(135deg, #ffd376, #ff7258); cursor: pointer; font-weight: 700; }
+
+aside { display: flex; flex-direction: column; gap: 12px; }
+.camera-card, .gesture-panel { border: 1px solid #2e2440; background: #100c19cc; border-radius: 15px; padding: 11px; }
+.camera-frame { position: relative; overflow: hidden; aspect-ratio: 16 / 8; border-radius: 10px; background: linear-gradient(135deg, #181225, #0b0910); }
+.camera-frame video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+.camera-frame button { position: absolute; inset: 50% auto auto 50%; transform: translate(-50%, -50%); white-space: nowrap; border: 1px solid #57466f; border-radius: 8px; padding: 8px 11px; color: #e7ddf7; background: #171020; cursor: pointer; }
+.camera-card > div:last-child { margin-top: 8px; color: #9387a5; font-size: 0.68rem; }
+.status-dot { display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: #695f77; }
+.status-dot.ready { background: #60e9a2; box-shadow: 0 0 8px #60e9a2; }
+.status-dot.blocked { background: #ff645c; }
+.panel-heading { display: flex; justify-content: space-between; align-items: baseline; margin: 1px 2px 9px; }
+.panel-heading span { font-family: Cinzel, Georgia, serif; font-size: 0.85rem; }
+.panel-heading small { color: #81738f; font-size: 0.62rem; }
+.gesture-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.gesture-grid button { display: flex; justify-content: space-between; align-items: center; min-height: 38px; border: 1px solid #342943; border-radius: 8px; padding: 7px 8px; color: #cfc4df; background: #171120; cursor: pointer; font-size: 0.69rem; transition: 120ms ease; }
+.gesture-grid button:hover { color: white; border-color: #765b9a; background: #22182f; transform: translateY(-1px); }
+kbd { color: #82738e; font-family: inherit; font-size: 0.6rem; }
+.enemy-attack { border: 1px dashed #653c45; border-radius: 10px; padding: 9px; color: #b9979d; background: transparent; cursor: pointer; font-size: 0.68rem; }
+
+@media (max-width: 900px) {
+  .game-shell { grid-template-columns: 1fr; }
+  .arena-wrap { min-height: 540px; }
+  aside { display: grid; grid-template-columns: 1fr 1fr; }
+  .camera-card { grid-column: 1 / -1; }
+}
+
+@media (max-width: 560px) {
+  main { padding: 10px; }
+  .arena-wrap { min-height: 460px; }
+  .party-health { top: 60px; right: 10px; }
+  .round-label { left: 10px; }
+  aside { grid-template-columns: 1fr; }
+  .camera-card { grid-column: auto; }
+}
