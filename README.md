@@ -9,7 +9,7 @@ npm install
 npm run dev
 ```
 
-The initial implementation includes the deterministic three-round combat loop, a React Three Fiber arena, webcam preview, keyboard/debug gesture controls, and integration boundaries for MediaPipe and multiplayer.
+The initial implementation includes the deterministic three-round combat loop, a React Three Fiber arena, camera-based MediaPipe gesture tracking without a visible webcam feed, keyboard/debug gesture controls, and a multiplayer integration boundary.
 
 Use keys `1`–`6` for Player A and `Shift+1`–`Shift+6` for the simulated Player B. The keys map to `FIST`, `THRUST`, `OPEN_PALM`, `POINT`, `PINCH`, and `HANDS_APART`.
 

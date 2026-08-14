@@ -1,4 +1,4 @@
-import { Environment, Float, Sparkles } from "@react-three/drei";
+import { Float, Sparkles } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { useRef } from "react";
 import type { Mesh } from "three";
@@ -67,15 +67,16 @@ function Ground() {
 
 export function Arena({ state }: { state: GameState }) {
   return (
-    <Canvas shadows camera={{ position: [0, 1.6, 6.2], fov: 45 }}>
-      <color attach="background" args={["#08060f"]} />
-      <fog attach="fog" args={["#08060f", 6, 13]} />
-      <ambientLight intensity={0.6} />
-      <directionalLight position={[4, 6, 3]} intensity={2.5} castShadow color="#ffd7b0" />
-      <pointLight position={[-4, 1, 1]} intensity={16} color="#7755ff" distance={8} />
-      <Enemy state={state} />
-      <Ground />
-      <Environment preset="night" />
-    </Canvas>
+    <div className="absolute inset-0 h-full w-full">
+      <Canvas className="h-full w-full" shadows camera={{ position: [0, 1.6, 6.2], fov: 45 }}>
+        <color attach="background" args={["#08060f"]} />
+        <fog attach="fog" args={["#08060f", 6, 13]} />
+        <ambientLight intensity={0.6} />
+        <directionalLight position={[4, 6, 3]} intensity={2.5} castShadow color="#ffd7b0" />
+        <pointLight position={[-4, 1, 1]} intensity={16} color="#7755ff" distance={8} />
+        <Enemy state={state} />
+        <Ground />
+      </Canvas>
+    </div>
   );
 }
