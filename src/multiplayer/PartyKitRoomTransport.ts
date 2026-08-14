@@ -8,7 +8,7 @@ export class PartyKitRoomTransport implements RoomTransport {
   private readonly listeners = new Set<(event: SemanticRoomEvent) => void>();
 
   connect(roomCode: string): Promise<void> {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const socket = new PartySocket({
         host: import.meta.env.VITE_PARTYKIT_HOST ?? DEFAULT_HOST,
         room: roomCode.toUpperCase(),
@@ -22,20 +22,10 @@ export class PartyKitRoomTransport implements RoomTransport {
         this.listeners.forEach((listener) => listener(event));
       });
 
-      const cleanup = () => {
-        socket.removeEventListener("open", onOpen);
-        socket.removeEventListener("error", onError);
-      };
-      const onOpen = () => {
-        cleanup();
-        resolve();
-      };
-      const onError = () => {
-        cleanup();
-        reject(new Error("Failed to connect to room"));
-      };
-      socket.addEventListener("open", onOpen);
-      socket.addEventListener("error", onError);
+      // partysocket retries transient connection failures on its own (maxRetries is
+      // infinite by default) and still fires "open" once it succeeds, so a single "error"
+      // event here is not a terminal failure — only resolve, never reject, on "open".
+      socket.addEventListener("open", () => resolve(), { once: true });
     });
   }
 
