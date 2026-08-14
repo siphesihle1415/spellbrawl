@@ -1,15 +1,84 @@
 import { useEffect, useRef, useState } from "react";
+import type { Gesture } from "../game/types";
+import type { Landmark } from "./gestureClassifier";
+import { MediaPipeGestureSource } from "./MediaPipeGestureSource";
 
-export function WebcamPreview() {
+const HAND_CONNECTIONS: Array<[number, number]> = [
+  [0, 1], [1, 2], [2, 3], [3, 4],
+  [0, 5], [5, 6], [6, 7], [7, 8],
+  [0, 9], [9, 10], [10, 11], [11, 12],
+  [0, 13], [13, 14], [14, 15], [15, 16],
+  [0, 17], [17, 18], [18, 19], [19, 20],
+  [5, 9], [9, 13], [13, 17],
+];
+
+function drawHands(canvas: HTMLCanvasElement, hands: Landmark[][], label: string | null) {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  for (const hand of hands) {
+    ctx.strokeStyle = "#4fd1c5";
+    ctx.lineWidth = 2;
+    for (const [start, end] of HAND_CONNECTIONS) {
+      const a = hand[start];
+      const b = hand[end];
+      ctx.beginPath();
+      ctx.moveTo(a.x * canvas.width, a.y * canvas.height);
+      ctx.lineTo(b.x * canvas.width, b.y * canvas.height);
+      ctx.stroke();
+    }
+    for (const point of hand) {
+      ctx.fillStyle = "#f6e05e";
+      ctx.beginPath();
+      ctx.arc(point.x * canvas.width, point.y * canvas.height, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  if (label) {
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "16px sans-serif";
+    ctx.fillText(label, 10, 20);
+  }
+}
+
+type Status = "idle" | "starting" | "blocked" | "tracking" | "tracking-failed";
+
+export function WebcamPreview({
+  onGesture,
+}: {
+  onGesture: (gesture: Gesture, confidence: number) => void;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [status, setStatus] = useState<"idle" | "starting" | "ready" | "blocked">("idle");
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const sourceRef = useRef<MediaPipeGestureSource | null>(null);
+  const [status, setStatus] = useState<Status>("idle");
 
   useEffect(() => {
     return () => {
+      sourceRef.current?.stop();
       const stream = videoRef.current?.srcObject;
       if (stream instanceof MediaStream) stream.getTracks().forEach((track) => track.stop());
     };
   }, []);
+
+  const startTracking = async () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+
+    try {
+      const source = new MediaPipeGestureSource(video, {
+        onFrame: (hands, pose) => drawHands(canvas, hands, pose?.gesture ?? null),
+      });
+      sourceRef.current = source;
+      await source.start((confirmed) => onGesture(confirmed.gesture, confirmed.confidence));
+      setStatus("tracking");
+    } catch {
+      setStatus("tracking-failed");
+    }
+  };
 
   const enableCamera = async () => {
     setStatus("starting");
@@ -22,17 +91,26 @@ export function WebcamPreview() {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
       }
-      setStatus("ready");
+      await startTracking();
     } catch {
       setStatus("blocked");
     }
+  };
+
+  const statusLabel: Record<Status, string> = {
+    idle: "Keyboard gestures are active.",
+    starting: "Starting camera…",
+    tracking: "Hand tracking active.",
+    blocked: "Camera blocked — retry.",
+    "tracking-failed": "Hand tracking unavailable — using keyboard gestures.",
   };
 
   return (
     <section className="camera-card">
       <div className="camera-frame">
         <video ref={videoRef} muted playsInline aria-label="Local webcam preview" />
-        {status !== "ready" && (
+        <canvas ref={canvasRef} width={640} height={480} className="hand-overlay" />
+        {status !== "tracking" && (
           <button type="button" onClick={enableCamera} disabled={status === "starting"}>
             {status === "starting" ? "Starting camera…" : status === "blocked" ? "Camera blocked — retry" : "Enable webcam"}
           </button>
@@ -40,7 +118,7 @@ export function WebcamPreview() {
       </div>
       <div>
         <span className={`status-dot ${status}`} />
-        {status === "ready" ? "Camera ready; MediaPipe adapter is next." : "Keyboard gestures are active."}
+        {statusLabel[status]}
       </div>
     </section>
   );

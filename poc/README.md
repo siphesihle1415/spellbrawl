@@ -32,4 +32,4 @@ npm run dev
 
 Click **Begin POC**, then use the gesture buttons. Keyboard shortcuts `1`–`6` control Player A and `Shift+1`–`Shift+6` control the simulated Player B. The controls map to `FIST`, `THRUST`, `OPEN_PALM`, `POINT`, `PINCH`, and `HANDS_APART` in that order.
 
-Implemented now: deterministic three-round combat, shared HP, enemy attacks, co-op recipes, a basic R3F arena, webcam preview, tests, and adapter contracts for hand tracking and multiplayer. MediaPipe gesture classification and a cross-device room service are the next integration steps.
+Implemented now: deterministic three-round combat, shared HP, enemy attacks, co-op recipes, a basic R3F arena, browser MediaPipe hand-gesture recognition for Player A, keyboard-simulated Player B, tests, and adapter contracts for multiplayer. A cross-device room service is the next integration step.

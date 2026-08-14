@@ -77,7 +77,7 @@ export function App() {
         </div>
 
         <aside>
-          <WebcamPreview />
+          <WebcamPreview onGesture={(gesture) => castGesture("PLAYER_A", gesture)} />
           <GestureControls playerId="PLAYER_A" onGesture={castGesture} />
           <GestureControls playerId="PLAYER_B" onGesture={castGesture} />
           <button className="enemy-attack" type="button" onClick={() => dispatch({ type: "ENEMY_ATTACK", at: performance.now() })}>
