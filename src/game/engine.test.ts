@@ -52,4 +52,10 @@ describe("gameReducer", () => {
     expect(state.status).toBe("VICTORY");
     expect(state.enemyHp).toBe(0);
   });
+
+  it("adopts a synced state verbatim", () => {
+    const remoteState = { ...started(), enemyHp: 1, message: "Remote update" };
+    const result = gameReducer(initialGameState(), { type: "SYNC", state: remoteState });
+    expect(result).toEqual(remoteState);
+  });
 });

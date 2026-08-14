@@ -114,6 +114,7 @@ const handleBossGesture = (
 export function gameReducer(state: GameState, action: GameAction): GameState {
   if (action.type === "RESET") return initialGameState();
   if (action.type === "START") return { ...initialGameState(), status: "PLAYING", message: "Embermaw attacks! Cast FIST → THRUST." };
+  if (action.type === "SYNC") return action.state;
   if (state.status !== "PLAYING") return state;
 
   if (action.type === "ENEMY_ATTACK") {

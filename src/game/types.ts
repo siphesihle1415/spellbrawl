@@ -49,5 +49,6 @@ export type GameState = {
 export type GameAction =
   | { type: "START" }
   | { type: "RESET" }
+  | { type: "SYNC"; state: GameState }
   | { type: "GESTURE"; playerId: PlayerId; gesture: Gesture; at: number }
   | { type: "ENEMY_ATTACK"; at: number };
