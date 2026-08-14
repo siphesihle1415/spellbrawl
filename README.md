@@ -20,4 +20,8 @@ npm test
 npm run build
 ```
 
+## Netlify
+
+The repository includes `netlify.toml`. Netlify must run `npm run build` and publish `dist`; publishing the repository root will not serve the compiled Vite application.
+
 See [the POC documentation](poc/README.md) for the scope, architecture, implementation plan, contracts, and validation checklist.
