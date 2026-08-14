@@ -44,43 +44,51 @@ export function App() {
   const progress = state.enemyMaxHp === 0 ? 0 : (state.enemyHp / state.enemyMaxHp) * 100;
 
   return (
-    <main>
-      <header className="topbar">
-        <div>
-          <p className="eyebrow">Co-op gesture combat · proof of concept</p>
-          <h1>Spell<span>Brawl</span></h1>
-        </div>
-        <div className="room-chip"><span /> Room: LOCAL</div>
-      </header>
+    <main className="relative h-dvh w-screen overflow-hidden bg-[#08060f]">
+      <section className="absolute inset-0 overflow-hidden">
+        <Arena state={state} />
 
-      <section className="game-shell">
-        <div className="arena-wrap">
-          <Arena state={state} />
-          <div className="round-label">Round {state.roundNumber} / 3</div>
-          <div className="enemy-hud">
-            <small>{encounter.title}</small>
-            <h2>{encounter.name}</h2>
-            <div className="health-track"><span style={{ width: `${progress}%` }} /></div>
-            <p>{state.enemyHp} / {state.enemyMaxHp} HP · {state.phase.replaceAll("_", " ")}</p>
+        <header className="absolute top-4 left-4 z-20 flex items-center gap-3 rounded-2xl border border-[#342849] bg-[#0c0915c9] px-4 py-3 backdrop-blur-md">
+          <div>
+            <p className="mb-0.5 text-[0.68rem] tracking-[0.17em] text-[#9d90bd] uppercase">Co-op gesture combat · proof of concept</p>
+            <h1 className="font-display m-0 text-[clamp(1.7rem,4vw,2.8rem)] leading-none tracking-[-0.06em]">Spell<span className="text-[#ff7758]">Brawl</span></h1>
           </div>
-          <div className="party-health">✦ Shared link: {"◆".repeat(state.sharedHp)}{"◇".repeat(5 - state.sharedHp)}</div>
-          <div className="message-banner">{state.message}</div>
-          {state.status !== "PLAYING" && (
-            <div className="overlay">
-              <p>{state.status === "VICTORY" ? "The rift is sealed" : state.status === "DEFEAT" ? "The link has broken" : "Two hands. One spell."}</p>
-              <h2>{state.status === "VICTORY" ? "Victory" : state.status === "DEFEAT" ? "Defeat" : "Enter the arena"}</h2>
-              <button type="button" onClick={() => dispatch({ type: state.status === "LOBBY" ? "START" : "RESET" })}>
-                {state.status === "LOBBY" ? "Begin POC" : "Return to lobby"}
-              </button>
-            </div>
-          )}
+          <div className="hidden rounded-full border border-[#3c3053] bg-[#141020cc] px-3.5 py-2.5 text-xs tracking-[0.08em] sm:block">
+            <span className="mr-2 inline-block size-[7px] rounded-full bg-[#70efb0] shadow-[0_0_10px_#70efb0]" /> Room: LOCAL
+          </div>
+        </header>
+
+        <div className="absolute top-[104px] left-1/2 z-10 w-[min(380px,65%)] -translate-x-1/2 text-center min-[901px]:top-5">
+          <small className="tracking-[0.15em] text-[#b8a8d2] uppercase">{encounter.title}</small>
+          <h2 className="font-display my-1 text-[clamp(1.4rem,3vw,2.2rem)]">{encounter.name}</h2>
+          <div className="h-[7px] rounded-[9px] border border-[#6c567e] bg-[#110d19] p-px">
+            <span className="block h-full rounded-[7px] bg-linear-to-r from-[#ff554a] to-[#ffb14a] transition-[width] duration-300" style={{ width: `${progress}%` }} />
+          </div>
+          <p className="m-[5px] text-[0.7rem] text-[#ac9dbf] uppercase">{state.enemyHp} / {state.enemyMaxHp} HP · {state.phase.replaceAll("_", " ")}</p>
         </div>
 
-        <aside>
-          <WebcamPreview />
+        <div className="absolute top-[190px] left-4 z-10 flex flex-col items-start gap-2 min-[901px]:top-[124px]">
+          <div className="rounded-full border border-[#392e4c] bg-[#0c0915cc] px-3 py-2.5 text-[0.7rem] tracking-[0.08em] uppercase backdrop-blur-sm">Round {state.roundNumber} / 3</div>
+          <div className="rounded-full border border-[#392e4c] bg-[#0c0915cc] px-3 py-2.5 text-[0.7rem] tracking-[0.08em] text-[#e5b6ff] uppercase backdrop-blur-sm">✦ Shared link: {"◆".repeat(state.sharedHp)}{"◇".repeat(5 - state.sharedHp)}</div>
+        </div>
+
+        <div className="absolute bottom-[44dvh] left-1/2 z-10 w-[min(700px,calc(100%_-_32px))] -translate-x-1/2 rounded-xl border border-[#3b2d50] bg-[#0c0915df] px-5 py-3.5 text-center text-sm text-[#ded4ef] backdrop-blur-md min-[901px]:bottom-6">{state.message}</div>
+
+        {state.status !== "PLAYING" && (
+          <div className="absolute inset-0 z-[15] grid place-content-center bg-[radial-gradient(circle,#160f27aa,#08060fef_70%)] text-center">
+            <p className="m-0 text-[0.7rem] tracking-[0.15em] text-[#b7a6d1] uppercase">{state.status === "VICTORY" ? "The rift is sealed" : state.status === "DEFEAT" ? "The link has broken" : "Two hands. One spell."}</p>
+            <h2 className="font-display mt-2 mb-[22px] text-[clamp(2.4rem,7vw,5rem)]">{state.status === "VICTORY" ? "Victory" : state.status === "DEFEAT" ? "Defeat" : "Enter the arena"}</h2>
+            <button className="justify-self-center rounded-full border border-[#ff9a6a] bg-linear-to-br from-[#ffd376] to-[#ff7258] px-[22px] py-3 font-bold text-[#180b11] transition-transform hover:scale-105" type="button" onClick={() => dispatch({ type: state.status === "LOBBY" ? "START" : "RESET" })}>
+              {state.status === "LOBBY" ? "Begin POC" : "Return to lobby"}
+            </button>
+          </div>
+        )}
+
+        <aside className="absolute right-3 bottom-3 left-3 z-20 grid max-h-[41dvh] grid-cols-2 gap-2 overflow-y-auto min-[901px]:top-4 min-[901px]:right-4 min-[901px]:bottom-auto min-[901px]:left-auto min-[901px]:flex min-[901px]:max-h-[calc(100dvh_-_32px)] min-[901px]:w-[340px] min-[901px]:flex-col min-[901px]:gap-3">
+          <WebcamPreview onGesture={(gesture) => castGesture("PLAYER_A", gesture)} />
           <GestureControls playerId="PLAYER_A" onGesture={castGesture} />
           <GestureControls playerId="PLAYER_B" onGesture={castGesture} />
-          <button className="enemy-attack" type="button" onClick={() => dispatch({ type: "ENEMY_ATTACK", at: performance.now() })}>
+          <button className="col-span-2 cursor-pointer rounded-[10px] border border-dashed border-[#653c45] bg-[#0c0915bb] p-2.5 text-[0.68rem] text-[#b9979d] backdrop-blur-sm min-[901px]:col-auto" type="button" onClick={() => dispatch({ type: "ENEMY_ATTACK", at: performance.now() })}>
             Simulate enemy attack
           </button>
         </aside>
