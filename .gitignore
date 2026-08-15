@@ -44,10 +44,5 @@ docs/superpowers/
 
 .wrangler
 
-# Uncompressed Meshy AI character source exports (~120MB each) — see
-# docs/superpowers/specs/2026-08-15-player-character-avatars-design.md.
-# Only the compressed output in public/models/characters/ is committed.
-/Meshy_AI_*.glb
-
 # Local Netlify folder
 .netlify
