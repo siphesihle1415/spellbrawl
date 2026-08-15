@@ -37,6 +37,6 @@ export const EMBERMAW_ANIMATION_URLS = {
 } as const;
 
 export const EMBERMAW_ANIMATED_TRANSFORM: { scale: number; position: [number, number, number] } = {
-  scale: 1,
+  scale: 0.6,
   position: [0, 0, 0],
 };
