@@ -31,10 +31,10 @@ jobs:
       - name: Sync director provider for Netlify Functions
         run: |
           for variable in LLM_DIRECTOR_PROVIDER LLM_DIRECTOR_TIMEOUT_MS ANTHROPIC_BASE_URL ANTHROPIC_DIRECTOR_MODEL OLLAMA_BASE_URL OLLAMA_DIRECTOR_MODEL; do
-            npx --yes netlify-cli@27.1.1 env:set "$variable" "${!variable}" --context production --scope functions --secret --force --site="$NETLIFY_SITE_ID" --auth="$NETLIFY_AUTH_TOKEN"
+            npx --yes netlify-cli@27.1.1 env:set "$variable" "${!variable}" --context production --secret --force --site="$NETLIFY_SITE_ID" --auth="$NETLIFY_AUTH_TOKEN"
           done
-          npx --yes netlify-cli@27.1.1 env:set ANTHROPIC_API_KEY "$ANTHROPIC_API_KEY" --context production --scope functions --secret --force --site="$NETLIFY_SITE_ID" --auth="$NETLIFY_AUTH_TOKEN"
-          npx --yes netlify-cli@27.1.1 env:set OLLAMA_API_KEY "$OLLAMA_API_KEY" --context production --scope functions --secret --force --site="$NETLIFY_SITE_ID" --auth="$NETLIFY_AUTH_TOKEN"
+          npx --yes netlify-cli@27.1.1 env:set ANTHROPIC_API_KEY "$ANTHROPIC_API_KEY" --context production --secret --force --site="$NETLIFY_SITE_ID" --auth="$NETLIFY_AUTH_TOKEN"
+          npx --yes netlify-cli@27.1.1 env:set OLLAMA_API_KEY "$OLLAMA_API_KEY" --context production --secret --force --site="$NETLIFY_SITE_ID" --auth="$NETLIFY_AUTH_TOKEN"
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: 9ab4d9d6-d19a-4b86-a631-4ba83c8a6b0a
