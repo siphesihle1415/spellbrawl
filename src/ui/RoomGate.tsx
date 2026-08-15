@@ -16,11 +16,13 @@ export function RoomGate({
   errorMessage,
   onCreate,
   onJoin,
+  onPreview,
 }: {
   connection: ConnectionState;
   errorMessage?: string;
   onCreate: (code: string) => void;
   onJoin: (code: string) => void;
+  onPreview: () => void;
 }) {
   const [joinCode, setJoinCode] = useState("");
 
@@ -68,6 +70,13 @@ export function RoomGate({
           disabled={connection.status === "CONNECTING"}
         >
           Create room
+        </button>
+        <button
+          className="w-[220px] cursor-pointer rounded-full border border-[#765aa0] bg-[#171020] px-[22px] py-3 font-bold text-[#e7ddf7] transition-transform hover:scale-105"
+          type="button"
+          onClick={onPreview}
+        >
+          Preview scene
         </button>
         <div className="flex items-center gap-2">
           <input

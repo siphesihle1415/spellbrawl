@@ -16,9 +16,9 @@ export const ACTIVE_MONSTER_VARIANT: Record<RoundId, string> = {
 };
 
 export const MONSTER_TRANSFORM: Record<RoundId, { scale: number; position: [number, number, number] }> = {
-  EMBERMAW: { scale: 1, position: [0, 0, 0] },
-  SHARD_WARDEN: { scale: 1, position: [0, 0, 0] },
-  HEXWYRM: { scale: 1, position: [0, 0, 0] },
+  EMBERMAW: { scale: 0.25, position: [0, 0.34, 0] },
+  SHARD_WARDEN: { scale: 0.25, position: [0, 0.34, 0] },
+  HEXWYRM: { scale: 0.25, position: [0, 0.34, 0] },
 };
 
 export function resolveVariant(variants: MonsterVariant[], activeId: string): MonsterVariant {
