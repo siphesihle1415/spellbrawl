@@ -2,7 +2,9 @@ import { Float, Sparkles } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { useRef } from "react";
 import type { Mesh } from "three";
+import type { CharacterSelections } from "../game/characters";
 import type { GameState } from "../game/types";
+import { PlayerAvatar } from "./PlayerAvatar";
 
 function Enemy({ state, color }: { state: GameState; color: string }) {
   const mesh = useRef<Mesh>(null);
@@ -63,7 +65,15 @@ function Ground() {
   );
 }
 
-export function Arena({ state, enemyColor }: { state: GameState; enemyColor: string }) {
+export function Arena({
+  state,
+  enemyColor,
+  characters,
+}: {
+  state: GameState;
+  enemyColor: string;
+  characters: CharacterSelections;
+}) {
   return (
     <div className="absolute inset-0 h-full w-full">
       <Canvas className="h-full w-full" shadows camera={{ position: [0, 1.6, 6.2], fov: 45 }}>
@@ -73,6 +83,8 @@ export function Arena({ state, enemyColor }: { state: GameState; enemyColor: str
         <directionalLight position={[4, 6, 3]} intensity={2.5} castShadow color="#ffd7b0" />
         <pointLight position={[-4, 1, 1]} intensity={16} color="#7755ff" distance={8} />
         <Enemy state={state} color={enemyColor} />
+        {characters.PLAYER_A && <PlayerAvatar characterId={characters.PLAYER_A} side="left" />}
+        {characters.PLAYER_B && <PlayerAvatar characterId={characters.PLAYER_B} side="right" />}
         <Ground />
       </Canvas>
     </div>
