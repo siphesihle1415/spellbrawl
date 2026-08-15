@@ -16,11 +16,13 @@ export function RoomGate({
   errorMessage,
   onCreate,
   onJoin,
+  onPreview,
 }: {
   connection: ConnectionState;
   errorMessage?: string;
   onCreate: (code: string) => void;
   onJoin: (code: string) => void;
+  onPreview: () => void;
 }) {
   const [joinCode, setJoinCode] = useState("");
 
@@ -86,6 +88,13 @@ export function RoomGate({
             Join
           </button>
         </div>
+        <button
+          className="cursor-pointer rounded-full border border-[#57466f] bg-[#171020] px-5 py-2 text-sm text-[#e7ddf7] transition-colors hover:border-[#a982d1] hover:bg-[#21172e]"
+          type="button"
+          onClick={onPreview}
+        >
+          Preview scene
+        </button>
         {connection.status === "CONNECTING" && <p className="m-0 text-xs text-[#9d90bd]">Connecting…</p>}
         {errorMessage && <p className="m-0 text-xs text-[#ff9a9a]">{errorMessage}</p>}
       </div>
