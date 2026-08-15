@@ -1,8 +1,8 @@
-import { Float, PointerLockControls, Sparkles, useGLTF } from "@react-three/drei";
+import { Float, PointerLockControls, Sparkles, useAnimations, useGLTF } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Suspense, useEffect, useRef } from "react";
-import { MathUtils, Mesh, Vector3, type Group, type Object3D, type PointLight } from "three";
-import { activeMonsterModelUrl, MONSTER_TRANSFORM } from "../game/monsters";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { LoopOnce, MathUtils, Mesh, Vector3, type AnimationAction, type Group, type Object3D, type PointLight } from "three";
+import { activeMonsterModelUrl, EMBERMAW_ANIMATED_TRANSFORM, EMBERMAW_ANIMATION_URLS, MONSTER_TRANSFORM } from "../game/monsters";
 import type { GameState } from "../game/types";
 
 const SCENE_MESH_URL = "/models/spellbrawl-three-rooms-open-lighting.glb";
@@ -152,13 +152,115 @@ function Enemy({ state, color }: { state: GameState; color: string }) {
   );
 }
 
+const EMBERMAW_CLIP = {
+  walking: "Armature|walking_man|baselayer",
+  zombieScream: "Armature|Zombie_Scream|baselayer",
+  jumpingPunch: "Armature|Jumping_Punch|baselayer",
+  fallingDown: "Armature|falling_down|baselayer",
+} as const;
+
+const CROSSFADE_SECONDS = 0.2;
+const EMBERMAW_DEFEAT_HOLD_MS = 2500;
+
+function crossfadeTo(
+  actions: Record<string, AnimationAction | null>,
+  name: string,
+  options: { once: boolean; clampWhenFinished?: boolean },
+) {
+  const next = actions[name];
+  if (!next) return;
+  if (options.once) {
+    next.setLoop(LoopOnce, 1);
+    next.clampWhenFinished = options.clampWhenFinished ?? false;
+  }
+  Object.entries(actions).forEach(([otherName, action]) => {
+    if (otherName !== name) action?.fadeOut(CROSSFADE_SECONDS);
+  });
+  next.reset().fadeIn(CROSSFADE_SECONDS).play();
+}
+
+function AnimatedEmbermaw({ state, color }: { state: GameState; color: string }) {
+  const group = useRef<Group>(null);
+  const walking = useGLTF(EMBERMAW_ANIMATION_URLS.walking);
+  const zombieScream = useGLTF(EMBERMAW_ANIMATION_URLS.zombieScream);
+  const jumpingPunch = useGLTF(EMBERMAW_ANIMATION_URLS.jumpingPunch);
+  const fallingDown = useGLTF(EMBERMAW_ANIMATION_URLS.fallingDown);
+  const clips = useMemo(
+    () => [...walking.animations, ...zombieScream.animations, ...jumpingPunch.animations, ...fallingDown.animations],
+    [walking.animations, zombieScream.animations, jumpingPunch.animations, fallingDown.animations],
+  );
+  const { actions, mixer } = useAnimations(clips, group);
+  const { scale, position } = EMBERMAW_ANIMATED_TRANSFORM;
+  const prev = useRef({ enemyHp: state.enemyHp, round: state.round, status: state.status });
+
+  useEffect(() => {
+    walking.scene.traverse((child) => {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    });
+  }, [walking.scene]);
+
+  useEffect(() => {
+    actions[EMBERMAW_CLIP.walking]?.reset().play();
+  }, [actions]);
+
+  useEffect(() => {
+    const onFinished = (event: { action: AnimationAction }) => {
+      if (event.action === actions[EMBERMAW_CLIP.zombieScream] || event.action === actions[EMBERMAW_CLIP.jumpingPunch]) {
+        crossfadeTo(actions, EMBERMAW_CLIP.walking, { once: false });
+      }
+    };
+    mixer.addEventListener("finished", onFinished);
+    return () => mixer.removeEventListener("finished", onFinished);
+  }, [actions, mixer]);
+
+  useEffect(() => {
+    const previous = prev.current;
+    if (state.round === "EMBERMAW" && previous.round === "EMBERMAW" && state.enemyHp < previous.enemyHp && state.enemyHp > 0) {
+      crossfadeTo(actions, EMBERMAW_CLIP.zombieScream, { once: true });
+    }
+    if (previous.round === "EMBERMAW" && state.round !== "EMBERMAW") {
+      crossfadeTo(actions, EMBERMAW_CLIP.fallingDown, { once: true, clampWhenFinished: true });
+    }
+    if (state.round === "EMBERMAW" && state.status === "DEFEAT" && previous.status !== "DEFEAT") {
+      crossfadeTo(actions, EMBERMAW_CLIP.jumpingPunch, { once: true });
+    }
+    prev.current = { enemyHp: state.enemyHp, round: state.round, status: state.status };
+  }, [state.enemyHp, state.round, state.status, actions]);
+
+  return (
+    <group position={[ROOM_CAMERA_X.EMBERMAW, 0.4, MONSTER_Z]}>
+      <Float speed={2} rotationIntensity={0.15} floatIntensity={0.3}>
+        <group ref={group} scale={scale} position={position}>
+          <primitive object={walking.scene} />
+        </group>
+      </Float>
+      <Sparkles count={25} position={[0, 0.35, 0]} scale={0.9} size={1.2} speed={0.4} color={color} />
+    </group>
+  );
+}
+
 useGLTF.preload(SCENE_MESH_URL);
 useGLTF.preload(activeMonsterModelUrl("EMBERMAW"));
 useGLTF.preload(activeMonsterModelUrl("SHARD_WARDEN"));
 useGLTF.preload(activeMonsterModelUrl("HEXWYRM"));
+useGLTF.preload(EMBERMAW_ANIMATION_URLS.walking);
+useGLTF.preload(EMBERMAW_ANIMATION_URLS.zombieScream);
+useGLTF.preload(EMBERMAW_ANIMATION_URLS.jumpingPunch);
+useGLTF.preload(EMBERMAW_ANIMATION_URLS.fallingDown);
 
 export function Arena({ state, enemyColor, preview = false, resetKey = 0 }: { state: GameState; enemyColor: string; preview?: boolean; resetKey?: number }) {
   const roomX = ROOM_CAMERA_X[state.round];
+  const [visibleRound, setVisibleRound] = useState(state.round);
+
+  useEffect(() => {
+    if (visibleRound === state.round) return;
+    if (visibleRound === "EMBERMAW") {
+      const timer = setTimeout(() => setVisibleRound(state.round), EMBERMAW_DEFEAT_HOLD_MS);
+      return () => clearTimeout(timer);
+    }
+    setVisibleRound(state.round);
+  }, [state.round, visibleRound]);
 
   return (
     <div className="absolute inset-0 h-full w-full">
@@ -174,7 +276,11 @@ export function Arena({ state, enemyColor, preview = false, resetKey = 0 }: { st
         <directionalLight position={[4, 7, 4]} intensity={2.8} castShadow color="#ffd7b0" />
         <Suspense fallback={null}>
           <SceneMesh />
-          <Enemy state={state} color={enemyColor} />
+          {visibleRound === "EMBERMAW" ? (
+            <AnimatedEmbermaw state={state} color={enemyColor} />
+          ) : (
+            <Enemy state={state} color={enemyColor} />
+          )}
         </Suspense>
         <RoomCamera round={state.round} preview={preview} resetKey={resetKey} />
         {preview && <PointerLockControls selector="#explore-scene" />}
