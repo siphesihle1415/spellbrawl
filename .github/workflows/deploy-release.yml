@@ -1,0 +1,34 @@
+name: Publish release to Netlify production
+
+on:
+  push:
+    branches:
+      - "release/**"
+  workflow_dispatch: {}
+
+# Only one release may replace the production site at a time.
+concurrency:
+  group: netlify-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Publish to Netlify production
+        run: npx --yes netlify-cli@27.1.1 deploy --prod --dir=dist --site=9ab4d9d6-d19a-4b86-a631-4ba83c8a6b0a --auth="$NETLIFY_AUTH_TOKEN"
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
