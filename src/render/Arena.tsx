@@ -10,13 +10,13 @@ const SCENE_MESH_URL = "/models/spellbrawl-three-rooms-open-lighting.glb";
 const SCENE_SCALE = 10.5;
 const ROOM_CAMERA_X: Record<GameState["round"], number> = {
   EMBERMAW: 0,
-  SHARD_WARDEN: 6.5,
-  HEXWYRM: -6.5,
+  SHARD_WARDEN: 1.4,
+  HEXWYRM: -1.4,
 };
-const CAMERA_SPAWN_Y = 0.8;
+const CAMERA_SPAWN_Y = 1.15;
 const CAMERA_SPAWN_Z = 0;
-const NAVIGATION_X_LIMITS = { min: -8.5, max: 8.5 };
-const NAVIGATION_Z_LIMITS = { near: 2.5, far: 0.35 };
+const NAVIGATION_X_LIMITS = { min: -2, max: 2 };
+const NAVIGATION_Z_LIMITS = { near: 1.05, far: -1.05 };
 const MOVE_SPEED = 3;
 const WALK_BOB_HEIGHT = 0.025;
 const MOVEMENT_KEYS = new Set(["w", "a", "s", "d"]);
