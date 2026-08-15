@@ -21,7 +21,7 @@ const providerDefaults: Record<
   ollama: { baseUrl: "https://ollama.com", model: "gpt-oss:20b" },
   anthropic: {
     baseUrl: "https://api.anthropic.com",
-    model: "claude-3-5-haiku-20241022",
+    model: "claude-haiku-4-5-20251001",
   },
   openai: { baseUrl: "https://api.openai.com/v1", model: "gpt-5.4-nano" },
 };
