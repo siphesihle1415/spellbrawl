@@ -1,10 +1,9 @@
-import { PointerLockControls, useGLTF } from "@react-three/drei";
+import { Float, Sparkles, useGLTF } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Suspense, useEffect, useRef } from "react";
-import { MathUtils, Mesh, Vector3, type Object3D, type PointLight } from "three";
-import type { CharacterSelections } from "../game/characters";
+import { MathUtils, Mesh, type Group, type Object3D, type PointLight } from "three";
+import { activeMonsterModelUrl, MONSTER_TRANSFORM } from "../game/monsters";
 import type { GameState } from "../game/types";
-import { PlayerAvatar } from "./PlayerAvatar";
 
 const SCENE_MESH_URL = "/models/spellbrawl-three-rooms-open-lighting.glb";
 const SCENE_SCALE = 10.5;
@@ -13,13 +12,8 @@ const ROOM_CAMERA_X: Record<GameState["round"], number> = {
   SHARD_WARDEN: 1.4,
   HEXWYRM: -1.4,
 };
-const CAMERA_SPAWN_Y = 1.15;
+const CAMERA_SPAWN_Y = 1.05;
 const CAMERA_SPAWN_Z = 0;
-const NAVIGATION_X_LIMITS = { min: -2, max: 2 };
-const NAVIGATION_Z_LIMITS = { near: 1.05, far: -1.05 };
-const MOVE_SPEED = 3;
-const WALK_BOB_HEIGHT = 0.025;
-const MOVEMENT_KEYS = new Set(["w", "a", "s", "d"]);
 
 function SceneMesh() {
   const { scene } = useGLTF(SCENE_MESH_URL);
@@ -40,78 +34,24 @@ function SceneMesh() {
   );
 }
 
-function RoomCamera({ round, preview, resetKey }: { round: GameState["round"]; preview: boolean; resetKey: number }) {
+function RoomCamera({ round }: { round: GameState["round"] }) {
   const { camera } = useThree();
   const light = useRef<PointLight>(null);
-  const pressedKeys = useRef(new Set<string>());
-  const forward = useRef(new Vector3());
-  const right = useRef(new Vector3());
-  const walkTime = useRef(0);
 
   useEffect(() => {
-    const roomX = ROOM_CAMERA_X[round];
-    if (preview) camera.position.x = roomX;
     camera.position.y = CAMERA_SPAWN_Y;
     camera.position.z = CAMERA_SPAWN_Z;
-    camera.lookAt(roomX, CAMERA_SPAWN_Y, -2);
-  }, [camera, preview, resetKey, round]);
-
-  useEffect(() => {
-    if (!preview) {
-      pressedKeys.current.clear();
-      return;
-    }
-    const updateKey = (event: KeyboardEvent, pressed: boolean) => {
-      const key = event.key.toLowerCase();
-      if (!MOVEMENT_KEYS.has(key)) return;
-      event.preventDefault();
-      if (pressed) pressedKeys.current.add(key);
-      else pressedKeys.current.delete(key);
-    };
-    const onKeyDown = (event: KeyboardEvent) => updateKey(event, true);
-    const onKeyUp = (event: KeyboardEvent) => updateKey(event, false);
-    const clearKeys = () => pressedKeys.current.clear();
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("keyup", onKeyUp);
-    window.addEventListener("blur", clearKeys);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("keyup", onKeyUp);
-      window.removeEventListener("blur", clearKeys);
-    };
-  }, [preview]);
+  }, [camera]);
 
   useFrame((_, delta) => {
     const roomX = ROOM_CAMERA_X[round];
-
-    if (preview) {
-      camera.getWorldDirection(forward.current);
-      forward.current.y = 0;
-      forward.current.normalize();
-      right.current.crossVectors(forward.current, camera.up).normalize();
-      const distance = MOVE_SPEED * delta;
-      if (pressedKeys.current.has("w")) camera.position.addScaledVector(forward.current, distance);
-      if (pressedKeys.current.has("s")) camera.position.addScaledVector(forward.current, -distance);
-      if (pressedKeys.current.has("d")) camera.position.addScaledVector(right.current, distance);
-      if (pressedKeys.current.has("a")) camera.position.addScaledVector(right.current, -distance);
-      camera.position.x = MathUtils.clamp(camera.position.x, NAVIGATION_X_LIMITS.min, NAVIGATION_X_LIMITS.max);
-      camera.position.z = MathUtils.clamp(camera.position.z, NAVIGATION_Z_LIMITS.far, NAVIGATION_Z_LIMITS.near);
-      if (pressedKeys.current.size > 0) walkTime.current += delta * 9;
-      camera.position.y = CAMERA_SPAWN_Y + (pressedKeys.current.size > 0 ? Math.sin(walkTime.current) * WALK_BOB_HEIGHT : 0);
-    } else {
-      camera.position.x = MathUtils.damp(camera.position.x, roomX, 3.5, delta);
-      camera.position.y = MathUtils.damp(camera.position.y, CAMERA_SPAWN_Y, 3.5, delta);
-      camera.position.z = MathUtils.damp(camera.position.z, CAMERA_SPAWN_Z, 3.5, delta);
-      camera.lookAt(camera.position.x, CAMERA_SPAWN_Y, -2);
-    }
+    camera.position.x = MathUtils.damp(camera.position.x, roomX, 3.5, delta);
+    camera.position.y = MathUtils.damp(camera.position.y, CAMERA_SPAWN_Y, 3.5, delta);
+    camera.position.z = MathUtils.damp(camera.position.z, CAMERA_SPAWN_Z, 3.5, delta);
+    camera.lookAt(camera.position.x, CAMERA_SPAWN_Y, -2);
 
     if (light.current) {
-      light.current.position.x = MathUtils.damp(
-        light.current.position.x,
-        camera.position.x + 1.2,
-        3.5,
-        delta,
-      );
+      light.current.position.x = MathUtils.damp(light.current.position.x, camera.position.x + 1.2, 3.5, delta);
       light.current.position.z = camera.position.z + 0.5;
     }
   });
@@ -127,19 +67,56 @@ function RoomCamera({ round, preview, resetKey }: { round: GameState["round"]; p
   );
 }
 
-useGLTF.preload(SCENE_MESH_URL);
+function Enemy({ state, color }: { state: GameState; color: string }) {
+  const group = useRef<Group>(null);
+  const shielded = state.phase === "SHIELDED" || state.phase === "ARMOR_PHASE";
+  const { scene } = useGLTF(activeMonsterModelUrl(state.round));
+  const { scale, position } = MONSTER_TRANSFORM[state.round];
 
-export function Arena({
-  state,
-  characters,
-  preview = false,
-  resetKey = 0,
-}: {
-  state: GameState;
-  characters: CharacterSelections;
-  preview?: boolean;
-  resetKey?: number;
-}) {
+  useEffect(() => {
+    scene.traverse((child) => {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    });
+  }, [scene]);
+
+  useFrame((clock) => {
+    if (!group.current) return;
+    group.current.rotation.y = clock.clock.elapsedTime * 0.35;
+    group.current.rotation.x = Math.sin(clock.clock.elapsedTime * 0.5) * 0.12;
+  });
+
+  return (
+    <group position={[ROOM_CAMERA_X[state.round], 0.4, -1]}>
+      <Float speed={2} rotationIntensity={0.25} floatIntensity={0.4}>
+        <group ref={group} scale={scale} position={position}>
+          <primitive object={scene} />
+        </group>
+        {shielded && (
+          <mesh>
+            <sphereGeometry args={[1.65, 32, 32]} />
+            <meshPhysicalMaterial
+              color="#8cecff"
+              transmission={0.75}
+              transparent
+              opacity={0.35}
+              roughness={0.05}
+              thickness={0.25}
+            />
+          </mesh>
+        )}
+      </Float>
+      <Sparkles count={50} scale={4} size={2.2} speed={0.4} color={color} />
+    </group>
+  );
+}
+
+useGLTF.preload(SCENE_MESH_URL);
+useGLTF.preload(activeMonsterModelUrl("EMBERMAW"));
+useGLTF.preload(activeMonsterModelUrl("SHARD_WARDEN"));
+useGLTF.preload(activeMonsterModelUrl("HEXWYRM"));
+
+export function Arena({ state, enemyColor }: { state: GameState; enemyColor: string }) {
   const roomX = ROOM_CAMERA_X[state.round];
 
   return (
@@ -156,13 +133,9 @@ export function Arena({
         <directionalLight position={[4, 7, 4]} intensity={2.8} castShadow color="#ffd7b0" />
         <Suspense fallback={null}>
           <SceneMesh />
+          <Enemy state={state} color={enemyColor} />
         </Suspense>
-        <RoomCamera round={state.round} preview={preview} resetKey={resetKey} />
-        {preview && <PointerLockControls selector="#explore-scene" />}
-        <group position={[roomX, 0, 0]}>
-          {characters.PLAYER_A && <PlayerAvatar characterId={characters.PLAYER_A} side="left" />}
-          {characters.PLAYER_B && <PlayerAvatar characterId={characters.PLAYER_B} side="right" />}
-        </group>
+        <RoomCamera round={state.round} />
       </Canvas>
     </div>
   );

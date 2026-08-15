@@ -1,14 +1,12 @@
 import { useEffect, useReducer, useRef, useState } from "react";
 import { directMessage, encounterForRound } from "./director/defaultConfig";
 import { useRunConfiguration } from "./director/useRunConfiguration";
-import { bothPicked, type CharacterId, type CharacterSelections } from "./game/characters";
 import { gameReducer, initialGameState } from "./game/engine";
-import type { Gesture, PlayerId, RoundId } from "./game/types";
+import type { Gesture, PlayerId } from "./game/types";
 import { WebcamPreview } from "./hand/WebcamPreview";
 import { CloudflareRoomTransport } from "./multiplayer/CloudflareRoomTransport";
 import type { ConnectionState } from "./multiplayer/RoomTransport";
 import { Arena } from "./render/Arena";
-import { CharacterSelect } from "./ui/CharacterSelect";
 import { GestureControls } from "./ui/GestureControls";
 import { RoomGate } from "./ui/RoomGate";
 
@@ -20,21 +18,11 @@ const keyGestures: Record<string, Gesture> = {
   "5": "HANDS_APART",
 };
 
-const previewRooms: Array<{ round: RoundId; label: string }> = [
-  { round: "EMBERMAW", label: "Ember room" },
-  { round: "SHARD_WARDEN", label: "Shard room" },
-  { round: "HEXWYRM", label: "Hex room" },
-];
-
 export function App() {
   const [state, dispatch] = useReducer(gameReducer, undefined, initialGameState);
   const [transport] = useState(() => new CloudflareRoomTransport());
   const [connection, setConnection] = useState<ConnectionState>({ status: "IDLE" });
   const [connectError, setConnectError] = useState("");
-  const [characters, setCharacters] = useState<CharacterSelections>({});
-  const [isPreviewing, setIsPreviewing] = useState(false);
-  const [previewRound, setPreviewRound] = useState<RoundId>("EMBERMAW");
-  const [previewResetKey, setPreviewResetKey] = useState(0);
   const roleRef = useRef<{ myPlayerId: PlayerId; isHost: boolean } | null>(null);
   const hasHostRole = (connection.status === "WAITING_FOR_PEER" || connection.status === "CONNECTED") && connection.isHost;
   const { configuration, status: directorStatus, applyRemoteConfiguration } = useRunConfiguration(hasHostRole);
@@ -49,13 +37,6 @@ export function App() {
     } else {
       transport.publish({ type: "GESTURE", playerId: role.myPlayerId, gesture, at });
     }
-  };
-
-  const selectCharacter = (characterId: CharacterId) => {
-    const role = roleRef.current;
-    if (!role) return;
-    setCharacters((current) => ({ ...current, [role.myPlayerId]: characterId }));
-    transport.publish({ type: "CHARACTER_SELECT", playerId: role.myPlayerId, characterId });
   };
 
   const connectTransport = async (code: string) => {
@@ -91,10 +72,6 @@ export function App() {
             ? { status: "CONNECTED", code: current.code, myPlayerId: current.myPlayerId, isHost: current.isHost }
             : current,
         );
-        return;
-      }
-      if (event.type === "CHARACTER_SELECT") {
-        setCharacters((current) => ({ ...current, [event.playerId]: event.characterId }));
         return;
       }
       if (event.type === "PEER_LEFT") {
@@ -180,12 +157,7 @@ export function App() {
   return (
     <main className="relative h-dvh w-screen overflow-hidden bg-[#08060f]">
       <section className="absolute inset-0 overflow-hidden">
-        <Arena
-          state={isPreviewing ? { ...state, round: previewRound } : state}
-          characters={characters}
-          preview={isPreviewing}
-          resetKey={previewResetKey}
-        />
+        <Arena state={state} enemyColor={encounter.color} />
 
         <header className="absolute top-4 left-4 z-20 flex items-center gap-3 rounded-2xl border border-[#342849] bg-[#0c0915c9] px-4 py-3 backdrop-blur-md">
           <div>
@@ -201,39 +173,8 @@ export function App() {
           </div>
         </header>
 
-        {isPreviewing ? (
-          <nav className="absolute right-4 bottom-4 z-20 flex max-w-[calc(100%_-_32px)] flex-wrap items-center justify-center gap-2 rounded-2xl border border-[#3c3053] bg-[#0c0915df] p-2 backdrop-blur-md" aria-label="Scene preview controls">
-            {previewRooms.map(({ round, label }) => (
-              <button
-                key={round}
-                className={`cursor-pointer rounded-full border px-4 py-2 text-sm transition-colors ${previewRound === round ? "border-[#ff9a6a] bg-[#ff8a61] text-[#180b11]" : "border-[#57466f] bg-[#171020] text-[#e7ddf7] hover:border-[#a982d1]"}`}
-                type="button"
-                onClick={() => {
-                  setPreviewRound(round);
-                  setPreviewResetKey((key) => key + 1);
-                }}
-              >
-                {label}
-              </button>
-            ))}
-            <button
-              id="explore-scene"
-              className="cursor-pointer rounded-full border border-[#77d8ca] bg-[#17332f] px-4 py-2 text-sm text-[#c9fff7] transition-colors hover:bg-[#214a43]"
-              type="button"
-              title="Click to capture the mouse. Use WASD to move and Escape to release it."
-            >
-              Explore · WASD + mouse
-            </button>
-            <button
-              className="cursor-pointer rounded-full border border-[#57466f] bg-transparent px-4 py-2 text-sm text-[#c7b9d9] hover:border-[#a982d1]"
-              type="button"
-              onClick={() => setIsPreviewing(false)}
-            >
-              Exit preview
-            </button>
-          </nav>
-        ) : !connected ? (
-          <RoomGate connection={connection} errorMessage={connectError} onCreate={connectTransport} onJoin={connectTransport} onPreview={() => setIsPreviewing(true)} />
+        {!connected ? (
+          <RoomGate connection={connection} errorMessage={connectError} onCreate={connectTransport} onJoin={connectTransport} />
         ) : (
           <>
             <div className="absolute top-[104px] left-1/2 z-10 w-[min(380px,65%)] -translate-x-1/2 text-center min-[901px]:top-5">
@@ -257,24 +198,18 @@ export function App() {
 
             <div className="absolute bottom-[44dvh] left-1/2 z-10 w-[min(700px,calc(100%_-_32px))] -translate-x-1/2 rounded-xl border border-[#3b2d50] bg-[#0c0915df] px-5 py-3.5 text-center text-sm text-[#ded4ef] backdrop-blur-md min-[901px]:bottom-6">{message}</div>
 
-            {state.status === "LOBBY" && !bothPicked(characters) ? (
-              connection.myPlayerId && (
-                <CharacterSelect characters={characters} myPlayerId={connection.myPlayerId} onSelect={selectCharacter} />
-              )
-            ) : (
-              state.status !== "PLAYING" && (
-                <div className="absolute inset-0 z-[15] grid place-content-center bg-[radial-gradient(circle,#160f27aa,#08060fef_70%)] text-center">
-                  <p className="m-0 text-[0.7rem] tracking-[0.15em] text-[#b7a6d1] uppercase">{state.status === "VICTORY" ? "The rift is sealed" : state.status === "DEFEAT" ? "The link has broken" : "Two hands. One spell."}</p>
-                  <h2 className="font-display mt-2 mb-[22px] text-[clamp(2.4rem,7vw,5rem)]">{state.status === "VICTORY" ? "Victory" : state.status === "DEFEAT" ? "Defeat" : "Enter the arena"}</h2>
-                  {connection.isHost ? (
-                    <button className="justify-self-center rounded-full border border-[#ff9a6a] bg-linear-to-br from-[#ffd376] to-[#ff7258] px-[22px] py-3 font-bold text-[#180b11] transition-transform hover:scale-105" type="button" onClick={() => dispatch({ type: state.status === "LOBBY" ? "START" : "RESET" })}>
-                      {state.status === "LOBBY" ? "Begin POC" : "Return to lobby"}
-                    </button>
-                  ) : (
-                    <p className="m-0 text-[0.7rem] tracking-[0.15em] text-[#b7a6d1] uppercase">Waiting for the host…</p>
-                  )}
-                </div>
-              )
+            {state.status !== "PLAYING" && (
+              <div className="absolute inset-0 z-[15] grid place-content-center bg-[radial-gradient(circle,#160f27aa,#08060fef_70%)] text-center">
+                <p className="m-0 text-[0.7rem] tracking-[0.15em] text-[#b7a6d1] uppercase">{state.status === "VICTORY" ? "The rift is sealed" : state.status === "DEFEAT" ? "The link has broken" : "Two hands. One spell."}</p>
+                <h2 className="font-display mt-2 mb-[22px] text-[clamp(2.4rem,7vw,5rem)]">{state.status === "VICTORY" ? "Victory" : state.status === "DEFEAT" ? "Defeat" : "Enter the arena"}</h2>
+                {connection.isHost ? (
+                  <button className="justify-self-center rounded-full border border-[#ff9a6a] bg-linear-to-br from-[#ffd376] to-[#ff7258] px-[22px] py-3 font-bold text-[#180b11] transition-transform hover:scale-105" type="button" onClick={() => dispatch({ type: state.status === "LOBBY" ? "START" : "RESET" })}>
+                    {state.status === "LOBBY" ? "Begin POC" : "Return to lobby"}
+                  </button>
+                ) : (
+                  <p className="m-0 text-[0.7rem] tracking-[0.15em] text-[#b7a6d1] uppercase">Waiting for the host…</p>
+                )}
+              </div>
             )}
 
             <aside className="absolute right-3 bottom-3 left-3 z-20 grid max-h-[41dvh] grid-cols-2 gap-2 overflow-y-auto min-[901px]:top-4 min-[901px]:right-4 min-[901px]:bottom-auto min-[901px]:left-auto min-[901px]:flex min-[901px]:max-h-[calc(100dvh_-_32px)] min-[901px]:w-[340px] min-[901px]:flex-col min-[901px]:gap-3">
