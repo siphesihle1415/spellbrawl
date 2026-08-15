@@ -50,6 +50,16 @@ export class RoomLogic {
       return; // tolerate a malformed/binary frame instead of throwing out of the relay
     }
 
+    // ROLE_ASSIGNED and PEER_LEFT are server-to-client only (emitted from onConnect/onClose
+    // above); a client sending one is either buggy or forging the other player's role/
+    // disconnect state, so drop it instead of relaying it as if the server said it.
+    if (event.type === "ROLE_ASSIGNED" || event.type === "PEER_LEFT") return;
+
+    // STATE_SYNC replaces the receiving client's entire game state, so only the host - the
+    // single source of truth for game state - may publish it; otherwise a guest could forge
+    // an arbitrary win/loss or HP value straight into the host's reducer.
+    if (event.type === "STATE_SYNC" && senderPlayerId !== "PLAYER_A") return;
+
     // The server is the source of truth for identity: bind any player-scoped message to the
     // sender's assigned role so a client can't drive the other player's inputs (or fabricate
     // solo "co-op" combos) by putting a foreign playerId in the payload.

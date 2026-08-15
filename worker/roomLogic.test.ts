@@ -148,6 +148,63 @@ describe("RoomLogic", () => {
     expect(third.closeCode).toBe(4000);
   });
 
+  it("drops a guest-sent STATE_SYNC instead of relaying it to the host", () => {
+    const room = new FakeRoom();
+    const logic = new RoomLogic(room as never);
+
+    const host = new FakeConnection("host-1");
+    room.add(host);
+    logic.onConnect(host as never);
+
+    const guest = new FakeConnection("guest-1");
+    room.add(guest);
+    logic.onConnect(guest as never);
+
+    logic.onMessage(JSON.stringify({ type: "STATE_SYNC", state: { status: "VICTORY" } }), guest as never);
+
+    expect(messagesOf(host)).not.toContainEqual(expect.objectContaining({ type: "STATE_SYNC" }));
+  });
+
+  it("relays a host-sent STATE_SYNC to the guest", () => {
+    const room = new FakeRoom();
+    const logic = new RoomLogic(room as never);
+
+    const host = new FakeConnection("host-1");
+    room.add(host);
+    logic.onConnect(host as never);
+
+    const guest = new FakeConnection("guest-1");
+    room.add(guest);
+    logic.onConnect(guest as never);
+
+    logic.onMessage(JSON.stringify({ type: "STATE_SYNC", state: { status: "VICTORY" } }), host as never);
+
+    expect(messagesOf(guest)).toContainEqual({ type: "STATE_SYNC", state: { status: "VICTORY" } });
+  });
+
+  it("drops client-sent ROLE_ASSIGNED and PEER_LEFT instead of relaying forged server events", () => {
+    const room = new FakeRoom();
+    const logic = new RoomLogic(room as never);
+
+    const host = new FakeConnection("host-1");
+    room.add(host);
+    logic.onConnect(host as never);
+
+    const guest = new FakeConnection("guest-1");
+    room.add(guest);
+    logic.onConnect(guest as never);
+
+    const hostMessageCountBeforeForgery = host.sent.length;
+
+    logic.onMessage(
+      JSON.stringify({ type: "ROLE_ASSIGNED", playerId: "PLAYER_B", isHost: true }),
+      guest as never,
+    );
+    logic.onMessage(JSON.stringify({ type: "PEER_LEFT" }), guest as never);
+
+    expect(host.sent.length).toBe(hostMessageCountBeforeForgery);
+  });
+
   it("only broadcasts PEER_LEFT for a connection that was actually accepted", () => {
     const room = new FakeRoom();
     const logic = new RoomLogic(room as never);
