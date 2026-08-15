@@ -1,36 +1,37 @@
-import { Float, Sparkles } from "@react-three/drei";
+import { Float, Sparkles, useGLTF } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { useRef } from "react";
-import type { Mesh } from "three";
+import { useEffect, useRef } from "react";
+import type { Group } from "three";
 import type { CharacterSelections } from "../game/characters";
+import { activeMonsterModelUrl, MONSTER_TRANSFORM } from "../game/monsters";
 import type { GameState } from "../game/types";
 import { PlayerAvatar } from "./PlayerAvatar";
 
 function Enemy({ state, color }: { state: GameState; color: string }) {
-  const mesh = useRef<Mesh>(null);
+  const group = useRef<Group>(null);
   const shielded = state.phase === "SHIELDED" || state.phase === "ARMOR_PHASE";
+  const { scene } = useGLTF(activeMonsterModelUrl(state.round));
+  const { scale, position } = MONSTER_TRANSFORM[state.round];
+
+  useEffect(() => {
+    scene.traverse((child) => {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    });
+  }, [scene]);
 
   useFrame((clock) => {
-    if (!mesh.current) return;
-    mesh.current.rotation.y = clock.clock.elapsedTime * 0.35;
-    mesh.current.rotation.x = Math.sin(clock.clock.elapsedTime * 0.5) * 0.12;
+    if (!group.current) return;
+    group.current.rotation.y = clock.clock.elapsedTime * 0.35;
+    group.current.rotation.x = Math.sin(clock.clock.elapsedTime * 0.5) * 0.12;
   });
 
   return (
     <group position={[0, 0.4, 0]}>
       <Float speed={2} rotationIntensity={0.25} floatIntensity={0.4}>
-        <mesh ref={mesh} castShadow>
-          {state.round === "EMBERMAW" && <icosahedronGeometry args={[1.15, 1]} />}
-          {state.round === "SHARD_WARDEN" && <octahedronGeometry args={[1.25, 0]} />}
-          {state.round === "HEXWYRM" && <torusKnotGeometry args={[0.8, 0.28, 96, 12]} />}
-          <meshStandardMaterial
-            color={color}
-            emissive={color}
-            emissiveIntensity={state.status === "VICTORY" ? 2.5 : 0.7}
-            roughness={0.32}
-            metalness={0.35}
-          />
-        </mesh>
+        <group ref={group} scale={scale} position={position}>
+          <primitive object={scene} />
+        </group>
         {shielded && (
           <mesh>
             <sphereGeometry args={[1.65, 32, 32]} />
@@ -90,3 +91,7 @@ export function Arena({
     </div>
   );
 }
+
+useGLTF.preload(activeMonsterModelUrl("EMBERMAW"));
+useGLTF.preload(activeMonsterModelUrl("SHARD_WARDEN"));
+useGLTF.preload(activeMonsterModelUrl("HEXWYRM"));
