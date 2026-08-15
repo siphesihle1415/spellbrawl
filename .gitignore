@@ -43,3 +43,6 @@ temp/
 docs/superpowers/
 
 .wrangler
+
+# Local Netlify folder
+.netlify
