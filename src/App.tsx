@@ -78,7 +78,11 @@ export function App() {
       }
       if (event.type === "GESTURE") {
         if (roleRef.current?.isHost) {
-          dispatch({ type: "GESTURE", playerId: event.playerId, gesture: event.gesture, at: event.at });
+          // The guest's `at` is on its own performance.now() clock, which is unrelated to
+          // the host's. The host is authoritative and applies every gesture, so re-stamp
+          // with the host clock at receipt time — otherwise cross-player combos, memory
+          // windows, and shields compare timestamps from two unrelated clocks and misfire.
+          dispatch({ type: "GESTURE", playerId: event.playerId, gesture: event.gesture, at: performance.now() });
         }
         return;
       }

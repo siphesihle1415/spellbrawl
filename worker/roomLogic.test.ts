@@ -62,6 +62,73 @@ describe("RoomLogic", () => {
     expect(guestMessages).toContainEqual({ type: "PLAYER_READY", playerId: "PLAYER_A" });
   });
 
+  it("binds a message to the sender's assigned role, ignoring a spoofed playerId", () => {
+    const room = new FakeRoom();
+    const logic = new RoomLogic(room as never);
+
+    const host = new FakeConnection("host-1");
+    room.add(host);
+    logic.onConnect(host as never);
+
+    const guest = new FakeConnection("guest-1");
+    room.add(guest);
+    logic.onConnect(guest as never);
+
+    // Guest (PLAYER_B) tries to drive PLAYER_A's casts by spoofing the payload.
+    logic.onMessage(
+      JSON.stringify({ type: "GESTURE", playerId: "PLAYER_A", gesture: "FIST", at: 1 }),
+      guest as never,
+    );
+
+    expect(messagesOf(host)).toContainEqual({ type: "GESTURE", playerId: "PLAYER_B", gesture: "FIST", at: 1 });
+    expect(messagesOf(host)).not.toContainEqual(
+      expect.objectContaining({ type: "GESTURE", playerId: "PLAYER_A" }),
+    );
+  });
+
+  it("clears only the leaving player's ready flag, so the survivor is still replayed to a rejoining peer", () => {
+    const room = new FakeRoom();
+    const logic = new RoomLogic(room as never);
+
+    const host = new FakeConnection("host-1");
+    room.add(host);
+    logic.onConnect(host as never);
+    logic.onMessage(JSON.stringify({ type: "PLAYER_READY", playerId: "PLAYER_A" }), host as never);
+
+    const guest = new FakeConnection("guest-1");
+    room.add(guest);
+    logic.onConnect(guest as never);
+    logic.onMessage(JSON.stringify({ type: "PLAYER_READY", playerId: "PLAYER_B" }), guest as never);
+
+    // Guest disconnects.
+    room.remove("guest-1");
+    logic.onClose(guest as never);
+
+    // Guest reconnects: the host's ready flag must have survived so it is replayed.
+    const rejoined = new FakeConnection("guest-2");
+    room.add(rejoined);
+    logic.onConnect(rejoined as never);
+
+    expect(messagesOf(rejoined)).toContainEqual({ type: "PLAYER_READY", playerId: "PLAYER_A" });
+    expect(messagesOf(rejoined)).not.toContainEqual({ type: "PLAYER_READY", playerId: "PLAYER_B" });
+  });
+
+  it("tolerates a malformed frame without throwing or relaying it", () => {
+    const room = new FakeRoom();
+    const logic = new RoomLogic(room as never);
+
+    const host = new FakeConnection("host-1");
+    room.add(host);
+    logic.onConnect(host as never);
+
+    const guest = new FakeConnection("guest-1");
+    room.add(guest);
+    logic.onConnect(guest as never);
+
+    expect(() => logic.onMessage("not json {", guest as never)).not.toThrow();
+    expect(host.sent).not.toContain("not json {");
+  });
+
   it("rejects a 3rd connection with close code 4000", () => {
     const room = new FakeRoom();
     const logic = new RoomLogic(room as never);

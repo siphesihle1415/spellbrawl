@@ -14,7 +14,7 @@ export type PlayerId = "PLAYER_A" | "PLAYER_B";
 const ROOM_CAPACITY = 2;
 
 export class RoomLogic {
-  private readonly acceptedConnectionIds = new Set<string>();
+  private readonly playerIdByConnectionId = new Map<string, PlayerId>();
   private readonly readyPlayerIds = new Set<PlayerId>();
 
   constructor(private readonly room: Room) {}
@@ -26,9 +26,9 @@ export class RoomLogic {
       return;
     }
 
-    this.acceptedConnectionIds.add(connection.id);
     const isHost = connections.length === 1;
     const playerId: PlayerId = isHost ? "PLAYER_A" : "PLAYER_B";
+    this.playerIdByConnectionId.set(connection.id, playerId);
     connection.send(JSON.stringify({ type: "ROLE_ASSIGNED", playerId, isHost }));
 
     // broadcast() only reaches connections open at send time, so a PLAYER_READY sent by
@@ -40,18 +40,39 @@ export class RoomLogic {
   }
 
   onMessage(message: string, sender: Connection): void {
-    const event = JSON.parse(message) as { type: string; playerId?: PlayerId };
-    if (event.type === "PLAYER_READY" && event.playerId) {
-      this.readyPlayerIds.add(event.playerId);
+    const senderPlayerId = this.playerIdByConnectionId.get(sender.id);
+    if (senderPlayerId === undefined) return; // never accepted (e.g. rejected 3rd connection)
+
+    let event: { type: string; playerId?: PlayerId };
+    try {
+      event = JSON.parse(message) as { type: string; playerId?: PlayerId };
+    } catch {
+      return; // tolerate a malformed/binary frame instead of throwing out of the relay
     }
-    this.room.broadcast(message, [sender.id]);
+
+    // The server is the source of truth for identity: bind any player-scoped message to the
+    // sender's assigned role so a client can't drive the other player's inputs (or fabricate
+    // solo "co-op" combos) by putting a foreign playerId in the payload.
+    let outgoing = message;
+    if (event.playerId !== undefined) {
+      event.playerId = senderPlayerId;
+      outgoing = JSON.stringify(event);
+    }
+    if (event.type === "PLAYER_READY") {
+      this.readyPlayerIds.add(senderPlayerId);
+    }
+    this.room.broadcast(outgoing, [sender.id]);
   }
 
   onClose(connection: Connection): void {
-    // A connection rejected for being the 3rd in the room never joins acceptedConnectionIds,
-    // so its close must not be mistaken for the real peer leaving.
-    if (!this.acceptedConnectionIds.delete(connection.id)) return;
-    this.readyPlayerIds.clear();
+    // A connection rejected for being the 3rd in the room never gets a playerId, so its
+    // close must not be mistaken for the real peer leaving.
+    const playerId = this.playerIdByConnectionId.get(connection.id);
+    if (playerId === undefined) return;
+    this.playerIdByConnectionId.delete(connection.id);
+    // Clear only the leaving player's ready flag, not the surviving peer's — the onConnect
+    // replay relies on the survivor's flag to re-signal ready to a rejoining player.
+    this.readyPlayerIds.delete(playerId);
     this.room.broadcast(JSON.stringify({ type: "PEER_LEFT" }), [connection.id]);
   }
 }
