@@ -1,5 +1,6 @@
 import { useEffect, useReducer, useRef, useState } from "react";
-import { encounters } from "./game/config";
+import { directMessage, encounterForRound } from "./director/defaultConfig";
+import { useRunConfiguration } from "./director/useRunConfiguration";
 import { gameReducer, initialGameState } from "./game/engine";
 import type { Gesture, PlayerId } from "./game/types";
 import { WebcamPreview } from "./hand/WebcamPreview";
@@ -24,8 +25,10 @@ export function App() {
   const [connection, setConnection] = useState<ConnectionState>({ status: "IDLE" });
   const [connectError, setConnectError] = useState("");
   const roleRef = useRef<{ myPlayerId: PlayerId; isHost: boolean } | null>(null);
+  const hasHostRole = (connection.status === "WAITING_FOR_PEER" || connection.status === "CONNECTED") && connection.isHost;
+  const { configuration, status: directorStatus, applyRemoteConfiguration } = useRunConfiguration(hasHostRole);
 
-  const encounter = encounters[state.round];
+  const encounter = encounterForRound(configuration, state.round);
 
   const castGesture = (gesture: Gesture, at: number) => {
     const role = roleRef.current;
@@ -88,10 +91,14 @@ export function App() {
       }
       if (event.type === "STATE_SYNC") {
         dispatch({ type: "SYNC", state: event.state });
+        return;
+      }
+      if (event.type === "DIRECTOR_SYNC") {
+        applyRemoteConfiguration(event.configuration, event.source);
       }
     });
     return unsubscribe;
-  }, [transport]);
+  }, [transport, applyRemoteConfiguration]);
 
   useEffect(() => () => transport.disconnect(), [transport]);
 
@@ -100,6 +107,20 @@ export function App() {
       transport.publish({ type: "STATE_SYNC", state });
     }
   }, [state, connection, transport]);
+
+  useEffect(() => {
+    if (
+      connection.status === "CONNECTED"
+      && connection.isHost
+      && (directorStatus === "ai" || directorStatus === "static" || directorStatus === "fallback")
+    ) {
+      transport.publish({
+        type: "DIRECTOR_SYNC",
+        configuration,
+        source: directorStatus,
+      });
+    }
+  }, [configuration, connection, directorStatus, transport]);
 
   useEffect(() => {
     if (state.status !== "PLAYING" || connection.status !== "CONNECTED" || !connection.isHost) return;
@@ -121,11 +142,19 @@ export function App() {
 
   const progress = state.enemyMaxHp === 0 ? 0 : (state.enemyHp / state.enemyMaxHp) * 100;
   const connected = connection.status === "CONNECTED";
+  const message = directMessage(configuration, state.message);
+  const directorLabel = directorStatus === "ai"
+    ? "AI Director"
+    : directorStatus === "static"
+      ? "Standalone run"
+      : directorStatus === "loading"
+        ? "Directing…"
+        : "Classic run";
 
   return (
     <main className="relative h-dvh w-screen overflow-hidden bg-[#08060f]">
       <section className="absolute inset-0 overflow-hidden">
-        <Arena state={state} />
+        <Arena state={state} enemyColor={encounter.color} />
 
         <header className="absolute top-4 left-4 z-20 flex items-center gap-3 rounded-2xl border border-[#342849] bg-[#0c0915c9] px-4 py-3 backdrop-blur-md">
           <div>
@@ -137,6 +166,7 @@ export function App() {
             {connection.status === "CONNECTED" || connection.status === "WAITING_FOR_PEER"
               ? `Room: ${connection.code} · ${connection.isHost ? "Host" : "Guest"}`
               : "Room: —"}
+            <span className="ml-3 border-l border-[#3c3053] pl-3 text-[#b8a8d2]">{directorLabel}</span>
           </div>
         </header>
 
@@ -151,6 +181,11 @@ export function App() {
                 <span className="block h-full rounded-[7px] bg-linear-to-r from-[#ff554a] to-[#ffb14a] transition-[width] duration-300" style={{ width: `${progress}%` }} />
               </div>
               <p className="m-[5px] text-[0.7rem] text-[#ac9dbf] uppercase">{state.enemyHp} / {state.enemyMaxHp} HP · {state.phase.replaceAll("_", " ")}</p>
+              {state.phase === "FUSION_FINISHER" && (
+                <p className="mx-auto mt-2 max-w-[36rem] rounded-lg border border-[#4d3b65] bg-[#0c0915dd] px-3 py-2 text-xs text-[#e5d5fa]">
+                  <strong className="text-[#ffcb76]">{configuration.finisher.name}:</strong> {configuration.finisher.clue}
+                </p>
+              )}
             </div>
 
             <div className="absolute top-[190px] left-4 z-10 flex flex-col items-start gap-2 min-[901px]:top-[124px]">
@@ -158,7 +193,7 @@ export function App() {
               <div className="rounded-full border border-[#392e4c] bg-[#0c0915cc] px-3 py-2.5 text-[0.7rem] tracking-[0.08em] text-[#e5b6ff] uppercase backdrop-blur-sm">✦ Shared link: {"◆".repeat(state.sharedHp)}{"◇".repeat(5 - state.sharedHp)}</div>
             </div>
 
-            <div className="absolute bottom-[44dvh] left-1/2 z-10 w-[min(700px,calc(100%_-_32px))] -translate-x-1/2 rounded-xl border border-[#3b2d50] bg-[#0c0915df] px-5 py-3.5 text-center text-sm text-[#ded4ef] backdrop-blur-md min-[901px]:bottom-6">{state.message}</div>
+            <div className="absolute bottom-[44dvh] left-1/2 z-10 w-[min(700px,calc(100%_-_32px))] -translate-x-1/2 rounded-xl border border-[#3b2d50] bg-[#0c0915df] px-5 py-3.5 text-center text-sm text-[#ded4ef] backdrop-blur-md min-[901px]:bottom-6">{message}</div>
 
             {state.status !== "PLAYING" && (
               <div className="absolute inset-0 z-[15] grid place-content-center bg-[radial-gradient(circle,#160f27aa,#08060fef_70%)] text-center">

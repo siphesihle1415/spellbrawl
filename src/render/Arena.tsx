@@ -2,12 +2,10 @@ import { Float, Sparkles } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { useRef } from "react";
 import type { Mesh } from "three";
-import { encounters } from "../game/config";
 import type { GameState } from "../game/types";
 
-function Enemy({ state }: { state: GameState }) {
+function Enemy({ state, color }: { state: GameState; color: string }) {
   const mesh = useRef<Mesh>(null);
-  const encounter = encounters[state.round];
   const shielded = state.phase === "SHIELDED" || state.phase === "ARMOR_PHASE";
 
   useFrame((clock) => {
@@ -24,8 +22,8 @@ function Enemy({ state }: { state: GameState }) {
           {state.round === "SHARD_WARDEN" && <octahedronGeometry args={[1.25, 0]} />}
           {state.round === "HEXWYRM" && <torusKnotGeometry args={[0.8, 0.28, 96, 12]} />}
           <meshStandardMaterial
-            color={encounter.color}
-            emissive={encounter.color}
+            color={color}
+            emissive={color}
             emissiveIntensity={state.status === "VICTORY" ? 2.5 : 0.7}
             roughness={0.32}
             metalness={0.35}
@@ -45,7 +43,7 @@ function Enemy({ state }: { state: GameState }) {
           </mesh>
         )}
       </Float>
-      <Sparkles count={50} scale={4} size={2.2} speed={0.4} color={encounter.color} />
+      <Sparkles count={50} scale={4} size={2.2} speed={0.4} color={color} />
     </group>
   );
 }
@@ -65,7 +63,7 @@ function Ground() {
   );
 }
 
-export function Arena({ state }: { state: GameState }) {
+export function Arena({ state, enemyColor }: { state: GameState; enemyColor: string }) {
   return (
     <div className="absolute inset-0 h-full w-full">
       <Canvas className="h-full w-full" shadows camera={{ position: [0, 1.6, 6.2], fov: 45 }}>
@@ -74,7 +72,7 @@ export function Arena({ state }: { state: GameState }) {
         <ambientLight intensity={0.6} />
         <directionalLight position={[4, 6, 3]} intensity={2.5} castShadow color="#ffd7b0" />
         <pointLight position={[-4, 1, 1]} intensity={16} color="#7755ff" distance={8} />
-        <Enemy state={state} />
+        <Enemy state={state} color={enemyColor} />
         <Ground />
       </Canvas>
     </div>
