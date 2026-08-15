@@ -27,7 +27,7 @@ export function StartupLoader({ loadedAssets, totalAssets }: { loadedAssets: num
   }, []);
 
   useEffect(() => {
-    const interval = window.setInterval(() => setFactIndex((index) => (index + 1) % facts.length), 4_500);
+    const interval = window.setInterval(() => setFactIndex((index) => (index + 1) % facts.length), 6_000);
     return () => window.clearInterval(interval);
   }, [facts.length]);
 
