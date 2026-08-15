@@ -21,6 +21,21 @@ const CAMERA_SPAWN_Z = 0.35;
 const MONSTER_Z = -0.85;
 const PREVIEW_SPEED = 0.7;
 const PREVIEW_BOUNDS = { minX: -2, maxX: 2, minZ: -1.15, maxZ: 1.15 };
+export const criticalAssetCount = 4;
+
+function AssetReadiness({ onAssetLoaded }: { onAssetLoaded?: (assetUrl: string) => void }) {
+  const environment = useGLTF(SCENE_MESH_URL);
+  const embermaw = useGLTF(activeMonsterModelUrl("EMBERMAW"));
+  const shardWarden = useGLTF(activeMonsterModelUrl("SHARD_WARDEN"));
+  const hexwyrm = useGLTF(activeMonsterModelUrl("HEXWYRM"));
+
+  useEffect(() => onAssetLoaded?.(SCENE_MESH_URL), [environment, onAssetLoaded]);
+  useEffect(() => onAssetLoaded?.(activeMonsterModelUrl("EMBERMAW")), [embermaw, onAssetLoaded]);
+  useEffect(() => onAssetLoaded?.(activeMonsterModelUrl("SHARD_WARDEN")), [shardWarden, onAssetLoaded]);
+  useEffect(() => onAssetLoaded?.(activeMonsterModelUrl("HEXWYRM")), [hexwyrm, onAssetLoaded]);
+
+  return null;
+}
 
 function SceneMesh() {
   const { scene } = useGLTF(SCENE_MESH_URL);
@@ -157,7 +172,7 @@ useGLTF.preload(activeMonsterModelUrl("EMBERMAW"));
 useGLTF.preload(activeMonsterModelUrl("SHARD_WARDEN"));
 useGLTF.preload(activeMonsterModelUrl("HEXWYRM"));
 
-export function Arena({ state, enemyColor, preview = false, resetKey = 0 }: { state: GameState; enemyColor: string; preview?: boolean; resetKey?: number }) {
+export function Arena({ state, enemyColor, preview = false, resetKey = 0, onAssetLoaded }: { state: GameState; enemyColor: string; preview?: boolean; resetKey?: number; onAssetLoaded?: (assetUrl: string) => void }) {
   const roomX = ROOM_CAMERA_X[state.round];
 
   return (
@@ -173,6 +188,7 @@ export function Arena({ state, enemyColor, preview = false, resetKey = 0 }: { st
         <ambientLight intensity={1} />
         <directionalLight position={[4, 7, 4]} intensity={2.8} castShadow color="#ffd7b0" />
         <Suspense fallback={null}>
+          <AssetReadiness onAssetLoaded={onAssetLoaded} />
           <SceneMesh />
           <Enemy state={state} color={enemyColor} />
         </Suspense>

@@ -1,12 +1,44 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import director from "../../netlify/functions/director.mts";
+import loaderFacts from "../../netlify/functions/loader-facts.mts";
 import { defaultRunConfiguration } from "./defaultConfig";
+import { fallbackLoaderFacts } from "./loaderFacts";
 
 const request = () => new Request("http://localhost/.netlify/functions/director", { method: "POST" });
+const factsRequest = () => new Request("http://localhost/.netlify/functions/loader-facts", { method: "POST" });
 
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
+});
+
+describe("loader facts function", () => {
+  it("returns loading-screen facts without calling an API in standalone mode", async () => {
+    vi.stubEnv("LLM_DIRECTOR_PROVIDER", "static");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await loaderFacts(factsRequest(), {} as never);
+
+    expect(await response.json()).toEqual({ facts: fallbackLoaderFacts, source: "static" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("uses the selected provider for generated facts", async () => {
+    vi.stubEnv("LLM_DIRECTOR_PROVIDER", "openai");
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({
+      output_text: JSON.stringify({ facts: [
+        "Embermaw sleeps beneath volcanic stone until the arena's first spark wakes its hunger.",
+        "Shard Warden counts the echoes in every crystal chamber before it chooses a challenger.",
+        "The Hexwyrm bends rift-light into a path only two united spellcasters can safely follow.",
+      ] }),
+    })));
+
+    const response = await loaderFacts(factsRequest(), {} as never);
+
+    expect((await response.json()).source).toBe("ai");
+  });
 });
 
 describe("director function", () => {
