@@ -40,6 +40,7 @@ export type GameState = {
   enemyHp: number;
   enemyMaxHp: number;
   armorBreaks: number;
+  enemyAttackCount: number;
   players: Record<PlayerId, PlayerState>;
   recentGestures: TimedGesture[];
   message: string;

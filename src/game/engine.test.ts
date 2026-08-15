@@ -16,6 +16,14 @@ describe("gameReducer", () => {
     expect(blocked.sharedHp).toBe(5);
   });
 
+  it("counts every enemy attack, blocked or landed", () => {
+    const shielded = gameReducer(started(), { type: "GESTURE", playerId: "PLAYER_A", gesture: "OPEN_PALM", at: 100 });
+    const blocked = gameReducer(shielded, { type: "ENEMY_ATTACK", at: 500 });
+    expect(blocked.enemyAttackCount).toBe(1);
+    const landed = gameReducer(started(), { type: "ENEMY_ATTACK", at: 500 });
+    expect(landed.enemyAttackCount).toBe(1);
+  });
+
   it("requires a second player to point before breaking the Warden shield", () => {
     let state = started();
     for (let index = 0; index < 3; index += 1) {
