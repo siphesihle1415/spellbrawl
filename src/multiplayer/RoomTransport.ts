@@ -1,10 +1,13 @@
 import type { GameState, Gesture, PlayerId } from "../game/types";
+import type { DirectorSource } from "../director/DirectorClient";
+import type { RunConfiguration } from "../director/schema";
 
 export type SemanticRoomEvent =
   | { type: "ROLE_ASSIGNED"; playerId: PlayerId; isHost: boolean }
   | { type: "PLAYER_READY"; playerId: PlayerId }
   | { type: "GESTURE"; playerId: PlayerId; gesture: Gesture; at: number }
   | { type: "STATE_SYNC"; state: GameState }
+  | { type: "DIRECTOR_SYNC"; configuration: RunConfiguration; source: DirectorSource }
   | { type: "PEER_LEFT" };
 
 export type ConnectionState =

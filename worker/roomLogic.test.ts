@@ -182,6 +182,24 @@ describe("RoomLogic", () => {
     expect(messagesOf(guest)).toContainEqual({ type: "STATE_SYNC", state: { status: "VICTORY" } });
   });
 
+  it("only relays DIRECTOR_SYNC when it is sent by the host", () => {
+    const room = new FakeRoom();
+    const logic = new RoomLogic(room as never);
+    const host = new FakeConnection("host-1");
+    const guest = new FakeConnection("guest-1");
+    room.add(host);
+    logic.onConnect(host as never);
+    room.add(guest);
+    logic.onConnect(guest as never);
+
+    const event = JSON.stringify({ type: "DIRECTOR_SYNC", configuration: { test: true }, source: "ai" });
+    logic.onMessage(event, guest as never);
+    expect(messagesOf(host)).not.toContainEqual(expect.objectContaining({ type: "DIRECTOR_SYNC" }));
+
+    logic.onMessage(event, host as never);
+    expect(messagesOf(guest)).toContainEqual({ type: "DIRECTOR_SYNC", configuration: { test: true }, source: "ai" });
+  });
+
   it("drops client-sent ROLE_ASSIGNED and PEER_LEFT instead of relaying forged server events", () => {
     const room = new FakeRoom();
     const logic = new RoomLogic(room as never);

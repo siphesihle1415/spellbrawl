@@ -24,6 +24,8 @@ Browser client A                         Browser client B
 
 ```text
 src/
+  config/       typed browser runtime settings
+  director/     provider adapters, fixed vocabulary, Effect Schema, client loader, fallback config
   hand/         webcam, landmarks, geometry, smoothing, gesture state
   game/         state machine, encounter rules, spell recipes, timers
   multiplayer/  room lifecycle, event transport, reconnect handling
@@ -36,12 +38,9 @@ The hand module emits confirmed gestures and confidence locally. It does not kno
 ## Server/API modules
 
 ```text
-api/
-  room/         create, join, and room transport endpoints
-  ai/           generate one run configuration
-server/
-  DirectorService.ts
-  schemas/      Effect Schema definitions and decoders
+netlify/functions/director.mts  generate and validate one run configuration
+worker/RoomDurableObject.ts     two-player WebSocket room
+worker/roomLogic.ts             identity and host-authority enforcement
 ```
 
 The room service relays or authoritatively processes semantic events, depending on the selected multiplayer provider. The POC must ensure that both clients converge on the same encounter state; server authority is preferred for damage, phase changes, and victory.
@@ -51,7 +50,7 @@ The room service relays or authoritatively processes semantic events, depending 
 - Webcam frames and MediaPipe landmarks stay on the device.
 - Clients send confirmed gestures, aim, readiness, and spell events.
 - The deterministic engine validates recipes, timing windows, player identity, and phase requirements.
-- The AI Director runs once near game start and returns configuration only.
+- The Director runs once for the host near game start; `LLM_DIRECTOR_PROVIDER` selects Ollama, Anthropic, OpenAI, or standalone configuration without code changes.
 - Effect Schema rejects invalid AI output before it reaches the game engine.
 
 ## State flow

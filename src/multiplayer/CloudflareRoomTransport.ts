@@ -1,8 +1,6 @@
 import PartySocket from "partysocket";
+import { clientRuntimeConfig } from "../config/runtime";
 import type { RoomTransport, SemanticRoomEvent } from "./RoomTransport";
-
-const DEFAULT_HOST = "127.0.0.1:8787";
-const CONNECT_TIMEOUT_MS = 10_000;
 
 export class CloudflareRoomTransport implements RoomTransport {
   private socket: PartySocket | null = null;
@@ -17,7 +15,7 @@ export class CloudflareRoomTransport implements RoomTransport {
 
     return new Promise((resolve, reject) => {
       const socket = new PartySocket({
-        host: import.meta.env.VITE_WORKER_HOST ?? DEFAULT_HOST,
+        host: clientRuntimeConfig.workerHost,
         room: roomCode.toUpperCase(),
       });
       this.socket = socket;
@@ -30,7 +28,7 @@ export class CloudflareRoomTransport implements RoomTransport {
         socket.close();
         if (this.socket === socket) this.socket = null;
         reject(new Error("Timed out connecting to the room."));
-      }, CONNECT_TIMEOUT_MS);
+      }, clientRuntimeConfig.roomConnectTimeoutMs);
 
       // Attached synchronously at socket creation (not after connect() resolves) so no
       // message sent immediately by the server's onConnect handler can be missed.
