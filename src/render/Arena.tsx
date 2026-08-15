@@ -2,7 +2,9 @@ import { useGLTF } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Suspense, useEffect, useRef } from "react";
 import { MathUtils, Mesh, type Object3D, type PointLight } from "three";
+import type { CharacterSelections } from "../game/characters";
 import type { GameState } from "../game/types";
+import { PlayerAvatar } from "./PlayerAvatar";
 
 const SCENE_MESH_URL = "/models/spellbrawl-three-rooms.glb";
 const SCENE_SCALE = 10.5;
@@ -76,14 +78,22 @@ function RoomCamera({ round }: { round: GameState["round"] }) {
 
 useGLTF.preload(SCENE_MESH_URL);
 
-export function Arena({ round }: { round: GameState["round"] }) {
+export function Arena({
+  state,
+  characters,
+}: {
+  state: GameState;
+  characters: CharacterSelections;
+}) {
+  const roomX = ROOM_CAMERA_X[state.round];
+
   return (
     <div className="absolute inset-0 h-full w-full">
       <Canvas
         className="h-full w-full"
         dpr={[1, 1.5]}
         shadows
-        camera={{ position: [ROOM_CAMERA_X[round], CAMERA_SPAWN_Y, CAMERA_SPAWN_Z], fov: 60 }}
+        camera={{ position: [roomX, CAMERA_SPAWN_Y, CAMERA_SPAWN_Z], fov: 60 }}
       >
         <color attach="background" args={["#08060f"]} />
         <fog attach="fog" args={["#08060f", 10, 24]} />
@@ -92,7 +102,11 @@ export function Arena({ round }: { round: GameState["round"] }) {
         <Suspense fallback={null}>
           <SceneMesh />
         </Suspense>
-        <RoomCamera round={round} />
+        <RoomCamera round={state.round} />
+        <group position={[roomX, 0, 0]}>
+          {characters.PLAYER_A && <PlayerAvatar characterId={characters.PLAYER_A} side="left" />}
+          {characters.PLAYER_B && <PlayerAvatar characterId={characters.PLAYER_B} side="right" />}
+        </group>
       </Canvas>
     </div>
   );
