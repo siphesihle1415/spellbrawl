@@ -19,7 +19,7 @@ export const defaultRunConfiguration: RunConfiguration = {
   },
   finisher: {
     name: "Starfall",
-    clue: "Player A holds FIST. Player B tears with HANDS APART. Player A finishes with THRUST.",
+    clue: "Player A holds FIST. Player B tears with HANDS APART. Player A finishes with OPEN PALM.",
   },
 };
 

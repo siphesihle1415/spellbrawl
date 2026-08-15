@@ -5,7 +5,7 @@
 - React + TypeScript browser client.
 - React Three Fiber / Three.js arena with placeholder-first visuals.
 - Webcam hand tracking through MediaPipe.
-- Reliable gesture recognition for `FIST`, `OPEN_PALM`, `POINT`, `PINCH`, `HANDS_APART`, and `THRUST`.
+- Reliable gesture recognition for `FIST`, `OPEN_PALM`, `POINT`, `PINCH`, and `HANDS_APART`.
 - Exactly two players per room.
 - Room creation and room-code joining.
 - Semantic multiplayer events only; never webcam video or per-frame landmarks.
@@ -31,6 +31,6 @@
 
 | Spell | Recipe | Effect |
 |---|---|---|
-| Firebolt | `FIST → THRUST` | Damages an exposed enemy |
+| Firebolt | `FIST → OPEN_PALM` | Damages an exposed enemy |
 | Arcane Shield | `OPEN_PALM` | Blocks incoming damage |
-| Starfall | Player A holds `FIST`; Player B uses `HANDS_APART`; Player A uses `THRUST` | Ends the Hexwyrm encounter |
+| Starfall | Player A holds `FIST`; Player B uses `HANDS_APART`; Player A uses `OPEN_PALM` | Ends the Hexwyrm encounter |

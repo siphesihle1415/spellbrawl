@@ -91,7 +91,7 @@ const handleBossGesture = (
       : { ...state, armorBreaks, recentGestures: [], message: "Armor shattered once. Repeat POINT + PINCH!" };
   }
 
-  if (state.phase === "CORE_PHASE" && gesture === "THRUST" && state.players[playerId].fistPrimedUntil >= at) {
+  if (state.phase === "CORE_PHASE" && gesture === "OPEN_PALM" && state.players[playerId].fistPrimedUntil >= at) {
     return { ...state, phase: "FUSION_FINISHER", recentGestures: [], message: "Bind the star: A holds FIST, B tears the rift with HANDS APART." };
   }
 
@@ -102,7 +102,7 @@ const handleBossGesture = (
     const hasBRift = gesture === "HANDS_APART" && playerId === "PLAYER_B"
       ? true
       : history.some((item) => item.playerId === "PLAYER_B" && item.gesture === "HANDS_APART" && item.at >= at - 2_000);
-    if (playerId === "PLAYER_A" && gesture === "THRUST" && hasAFist && hasBRift) {
+    if (playerId === "PLAYER_A" && gesture === "OPEN_PALM" && hasAFist && hasBRift) {
       return applyDamage({ ...state, recentGestures: history }, state.enemyHp);
     }
     return { ...state, recentGestures: history };
@@ -113,7 +113,7 @@ const handleBossGesture = (
 
 export function gameReducer(state: GameState, action: GameAction): GameState {
   if (action.type === "RESET") return initialGameState();
-  if (action.type === "START") return { ...initialGameState(), status: "PLAYING", message: "Embermaw attacks! Cast FIST → THRUST." };
+  if (action.type === "START") return { ...initialGameState(), status: "PLAYING", message: "Embermaw attacks! Cast FIST → OPEN PALM." };
   if (action.type === "SYNC") return action.state;
   if (state.status !== "PLAYING") return state;
 
@@ -141,10 +141,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
   const next = { ...state, players, recentGestures: history };
 
   if (state.round === "HEXWYRM") return handleBossGesture(next, playerId, gesture, at, history);
-  if (gesture === "OPEN_PALM") return { ...next, message: "Arcane shield raised." };
 
-  const firebolt = gesture === "THRUST" && player.fistPrimedUntil >= at;
-  if (!firebolt) return next;
+  const firebolt = gesture === "OPEN_PALM" && player.fistPrimedUntil >= at;
+  if (!firebolt) {
+    if (gesture === "OPEN_PALM") return { ...next, message: "Arcane shield raised." };
+    return next;
+  }
 
   if (state.round === "SHARD_WARDEN" && state.phase === "SHIELDED") {
     if (!hasGesture(history, "POINT", at - COMBO_WINDOW, playerId)) {

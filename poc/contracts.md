@@ -8,11 +8,10 @@ type Gesture =
   | "OPEN_PALM"
   | "POINT"
   | "PINCH"
-  | "HANDS_APART"
-  | "THRUST";
+  | "HANDS_APART";
 ```
 
-`THRUST` is a motion gesture. Other gestures are stable poses. A gesture is emitted only after approximately 100–150 ms of temporal stability, with confidence included for local feedback.
+All gestures are stable poses. A gesture is emitted only after approximately 100–150 ms of temporal stability, with confidence included for local feedback.
 
 ## Client-to-room events
 
@@ -45,10 +44,10 @@ type GameState = {
 ## Encounter rules
 
 - Embermaw starts at 3 HP and has no special mechanic.
-- Shard Warden requires `POINT` from one player and `FIST → THRUST` from the other within a short timing window while its shield is active.
+- Shard Warden requires `POINT` from one player and `FIST → OPEN_PALM` from the other within a short timing window while its shield is active.
 - Hexwyrm's breath attack requires both players to use `OPEN_PALM` within roughly one second.
 - Hexwyrm armor breaks when one player uses `POINT` and the other uses `PINCH`; repeat twice.
-- Starfall requires Player A to hold `FIST`, Player B to use `HANDS_APART`, and Player A to use `THRUST`.
+- Starfall requires Player A to hold `FIST`, Player B to use `HANDS_APART`, and Player A to use `OPEN_PALM`.
 - The engine, not the LLM, owns all damage and phase transitions.
 
 ## AI encounter configuration

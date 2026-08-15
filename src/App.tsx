@@ -12,11 +12,10 @@ import { RoomGate } from "./ui/RoomGate";
 
 const keyGestures: Record<string, Gesture> = {
   "1": "FIST",
-  "2": "THRUST",
-  "3": "OPEN_PALM",
-  "4": "POINT",
-  "5": "PINCH",
-  "6": "HANDS_APART",
+  "2": "OPEN_PALM",
+  "3": "POINT",
+  "4": "PINCH",
+  "5": "HANDS_APART",
 };
 
 export function App() {
