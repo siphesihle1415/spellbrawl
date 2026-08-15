@@ -162,8 +162,10 @@ const EMBERMAW_CLIP = {
 const CROSSFADE_SECONDS = 0.2;
 const EMBERMAW_DEFEAT_HOLD_MS = 2500;
 const ROOT_BONE_NAME = "Hips";
+const EMBERMAW_REST_OFFSET_Z = 0.45;
+const EMBERMAW_REST_Z = MONSTER_Z + EMBERMAW_REST_OFFSET_Z;
 const EMBERMAW_ENTRANCE_START_OFFSET_Z = -2.5;
-const EMBERMAW_ENTRANCE_START_Z = MONSTER_Z + EMBERMAW_ENTRANCE_START_OFFSET_Z;
+const EMBERMAW_ENTRANCE_START_Z = EMBERMAW_REST_Z + EMBERMAW_ENTRANCE_START_OFFSET_Z;
 const EMBERMAW_ENTRANCE_DURATION_MS = 3000;
 
 // Reaction clips (e.g. Jumping_Punch) bake forward lunge into the Hips root bone, which would
@@ -265,7 +267,7 @@ function AnimatedEmbermaw({ state, color }: { state: GameState; color: string })
     }
     const elapsed = performance.now() - entranceStartAt.current;
     const t = Math.min(1, elapsed / EMBERMAW_ENTRANCE_DURATION_MS);
-    entranceGroup.current.position.z = MathUtils.lerp(EMBERMAW_ENTRANCE_START_Z, MONSTER_Z, t);
+    entranceGroup.current.position.z = MathUtils.lerp(EMBERMAW_ENTRANCE_START_Z, EMBERMAW_REST_Z, t);
   });
 
   return (
