@@ -1,7 +1,7 @@
 import { Float, PointerLockControls, Sparkles, useAnimations, useGLTF } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { LoopOnce, MathUtils, Mesh, Vector3, type AnimationAction, type Group, type Object3D, type PointLight } from "three";
+import { LoopOnce, MathUtils, Mesh, Vector3, type AnimationAction, type AnimationClip, type Group, type Object3D, type PointLight } from "three";
 import { activeMonsterModelUrl, EMBERMAW_ANIMATED_TRANSFORM, EMBERMAW_ANIMATION_URLS, MONSTER_TRANSFORM } from "../game/monsters";
 import type { GameState } from "../game/types";
 
@@ -161,6 +161,27 @@ const EMBERMAW_CLIP = {
 
 const CROSSFADE_SECONDS = 0.2;
 const EMBERMAW_DEFEAT_HOLD_MS = 2500;
+const ROOT_BONE_NAME = "Hips";
+const EMBERMAW_ENTRANCE_START_OFFSET_Z = -2.5;
+const EMBERMAW_ENTRANCE_START_Z = MONSTER_Z + EMBERMAW_ENTRANCE_START_OFFSET_Z;
+const EMBERMAW_ENTRANCE_DURATION_MS = 3000;
+
+// Reaction clips (e.g. Jumping_Punch) bake forward lunge into the Hips root bone, which would
+// otherwise shove the whole rig toward the camera each time they play. Pin X/Z to the first
+// frame so the character stays planted where we've positioned it; vertical motion (crouch/bob)
+// is left untouched.
+function stripHorizontalRootMotion(clip: AnimationClip): AnimationClip {
+  const track = clip.tracks.find((candidate) => candidate.name === `${ROOT_BONE_NAME}.position`);
+  if (!track) return clip;
+  const values = track.values;
+  const x0 = values[0];
+  const z0 = values[2];
+  for (let i = 0; i < values.length; i += 3) {
+    values[i] = x0;
+    values[i + 2] = z0;
+  }
+  return clip;
+}
 
 function crossfadeTo(
   actions: Record<string, AnimationAction | null>,
@@ -181,17 +202,19 @@ function crossfadeTo(
 
 function AnimatedEmbermaw({ state, color }: { state: GameState; color: string }) {
   const group = useRef<Group>(null);
+  const entranceGroup = useRef<Group>(null);
+  const entranceStartAt = useRef<number | null>(null);
   const walking = useGLTF(EMBERMAW_ANIMATION_URLS.walking);
   const zombieScream = useGLTF(EMBERMAW_ANIMATION_URLS.zombieScream);
   const jumpingPunch = useGLTF(EMBERMAW_ANIMATION_URLS.jumpingPunch);
   const fallingDown = useGLTF(EMBERMAW_ANIMATION_URLS.fallingDown);
   const clips = useMemo(
-    () => [...walking.animations, ...zombieScream.animations, ...jumpingPunch.animations, ...fallingDown.animations],
+    () => [...walking.animations, ...zombieScream.animations, ...jumpingPunch.animations, ...fallingDown.animations].map(stripHorizontalRootMotion),
     [walking.animations, zombieScream.animations, jumpingPunch.animations, fallingDown.animations],
   );
   const { actions, mixer } = useAnimations(clips, group);
   const { scale, position } = EMBERMAW_ANIMATED_TRANSFORM;
-  const prev = useRef({ enemyHp: state.enemyHp, round: state.round, status: state.status });
+  const prev = useRef({ enemyHp: state.enemyHp, round: state.round, enemyAttackCount: state.enemyAttackCount, status: state.status });
 
   useEffect(() => {
     walking.scene.traverse((child) => {
@@ -222,14 +245,31 @@ function AnimatedEmbermaw({ state, color }: { state: GameState; color: string })
     if (previous.round === "EMBERMAW" && state.round !== "EMBERMAW") {
       crossfadeTo(actions, EMBERMAW_CLIP.fallingDown, { once: true, clampWhenFinished: true });
     }
-    if (state.round === "EMBERMAW" && state.status === "DEFEAT" && previous.status !== "DEFEAT") {
+    if (state.round === "EMBERMAW" && previous.round === "EMBERMAW" && state.enemyAttackCount > previous.enemyAttackCount) {
       crossfadeTo(actions, EMBERMAW_CLIP.jumpingPunch, { once: true });
     }
-    prev.current = { enemyHp: state.enemyHp, round: state.round, status: state.status };
-  }, [state.enemyHp, state.round, state.status, actions]);
+    if (previous.status === "LOBBY" && state.status === "PLAYING") {
+      entranceStartAt.current = performance.now();
+    }
+    if (state.status === "LOBBY") {
+      entranceStartAt.current = null;
+    }
+    prev.current = { enemyHp: state.enemyHp, round: state.round, enemyAttackCount: state.enemyAttackCount, status: state.status };
+  }, [state.enemyHp, state.round, state.enemyAttackCount, state.status, actions]);
+
+  useFrame(() => {
+    if (!entranceGroup.current) return;
+    if (entranceStartAt.current === null) {
+      entranceGroup.current.position.z = EMBERMAW_ENTRANCE_START_Z;
+      return;
+    }
+    const elapsed = performance.now() - entranceStartAt.current;
+    const t = Math.min(1, elapsed / EMBERMAW_ENTRANCE_DURATION_MS);
+    entranceGroup.current.position.z = MathUtils.lerp(EMBERMAW_ENTRANCE_START_Z, MONSTER_Z, t);
+  });
 
   return (
-    <group position={[ROOM_CAMERA_X.EMBERMAW, 0.4, MONSTER_Z]}>
+    <group ref={entranceGroup} position={[ROOM_CAMERA_X.EMBERMAW, 0.4, EMBERMAW_ENTRANCE_START_Z]}>
       <Float speed={2} rotationIntensity={0.15} floatIntensity={0.3}>
         <group ref={group} scale={scale} position={position}>
           <primitive object={walking.scene} />
