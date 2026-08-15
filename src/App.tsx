@@ -3,7 +3,7 @@ import { encounters } from "./game/config";
 import { gameReducer, initialGameState } from "./game/engine";
 import type { Gesture, PlayerId } from "./game/types";
 import { WebcamPreview } from "./hand/WebcamPreview";
-import { PartyKitRoomTransport } from "./multiplayer/PartyKitRoomTransport";
+import { CloudflareRoomTransport } from "./multiplayer/CloudflareRoomTransport";
 import type { ConnectionState } from "./multiplayer/RoomTransport";
 import { Arena } from "./render/Arena";
 import { GestureControls } from "./ui/GestureControls";
@@ -20,7 +20,7 @@ const keyGestures: Record<string, Gesture> = {
 
 export function App() {
   const [state, dispatch] = useReducer(gameReducer, undefined, initialGameState);
-  const [transport] = useState(() => new PartyKitRoomTransport());
+  const [transport] = useState(() => new CloudflareRoomTransport());
   const [connection, setConnection] = useState<ConnectionState>({ status: "IDLE" });
   const [connectError, setConnectError] = useState("");
   const roleRef = useRef<{ myPlayerId: PlayerId; isHost: boolean } | null>(null);

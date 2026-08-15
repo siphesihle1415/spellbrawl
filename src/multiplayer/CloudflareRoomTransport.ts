@@ -1,16 +1,16 @@
 import PartySocket from "partysocket";
 import type { RoomTransport, SemanticRoomEvent } from "./RoomTransport";
 
-const DEFAULT_HOST = "127.0.0.1:1999";
+const DEFAULT_HOST = "127.0.0.1:8787";
 
-export class PartyKitRoomTransport implements RoomTransport {
+export class CloudflareRoomTransport implements RoomTransport {
   private socket: PartySocket | null = null;
   private readonly listeners = new Set<(event: SemanticRoomEvent) => void>();
 
   connect(roomCode: string): Promise<void> {
     return new Promise((resolve) => {
       const socket = new PartySocket({
-        host: import.meta.env.VITE_PARTYKIT_HOST ?? DEFAULT_HOST,
+        host: import.meta.env.VITE_WORKER_HOST ?? DEFAULT_HOST,
         room: roomCode.toUpperCase(),
       });
       this.socket = socket;
