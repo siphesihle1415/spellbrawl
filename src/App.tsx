@@ -1,12 +1,14 @@
 import { useEffect, useReducer, useRef, useState } from "react";
 import { directMessage, encounterForRound } from "./director/defaultConfig";
 import { useRunConfiguration } from "./director/useRunConfiguration";
+import { bothPicked, type CharacterId, type CharacterSelections } from "./game/characters";
 import { gameReducer, initialGameState } from "./game/engine";
 import type { Gesture, PlayerId } from "./game/types";
 import { WebcamPreview } from "./hand/WebcamPreview";
 import { CloudflareRoomTransport } from "./multiplayer/CloudflareRoomTransport";
 import type { ConnectionState } from "./multiplayer/RoomTransport";
 import { Arena } from "./render/Arena";
+import { CharacterSelect } from "./ui/CharacterSelect";
 import { GestureControls } from "./ui/GestureControls";
 import { RoomGate } from "./ui/RoomGate";
 
@@ -23,6 +25,7 @@ export function App() {
   const [transport] = useState(() => new CloudflareRoomTransport());
   const [connection, setConnection] = useState<ConnectionState>({ status: "IDLE" });
   const [connectError, setConnectError] = useState("");
+  const [characters, setCharacters] = useState<CharacterSelections>({});
   const roleRef = useRef<{ myPlayerId: PlayerId; isHost: boolean } | null>(null);
   const hasHostRole = (connection.status === "WAITING_FOR_PEER" || connection.status === "CONNECTED") && connection.isHost;
   const { configuration, status: directorStatus, applyRemoteConfiguration } = useRunConfiguration(hasHostRole);
@@ -37,6 +40,13 @@ export function App() {
     } else {
       transport.publish({ type: "GESTURE", playerId: role.myPlayerId, gesture, at });
     }
+  };
+
+  const selectCharacter = (characterId: CharacterId) => {
+    const role = roleRef.current;
+    if (!role) return;
+    setCharacters((current) => ({ ...current, [role.myPlayerId]: characterId }));
+    transport.publish({ type: "CHARACTER_SELECT", playerId: role.myPlayerId, characterId });
   };
 
   const connectTransport = async (code: string) => {
@@ -72,6 +82,10 @@ export function App() {
             ? { status: "CONNECTED", code: current.code, myPlayerId: current.myPlayerId, isHost: current.isHost }
             : current,
         );
+        return;
+      }
+      if (event.type === "CHARACTER_SELECT") {
+        setCharacters((current) => ({ ...current, [event.playerId]: event.characterId }));
         return;
       }
       if (event.type === "PEER_LEFT") {
@@ -198,18 +212,24 @@ export function App() {
 
             <div className="absolute bottom-[44dvh] left-1/2 z-10 w-[min(700px,calc(100%_-_32px))] -translate-x-1/2 rounded-xl border border-[#3b2d50] bg-[#0c0915df] px-5 py-3.5 text-center text-sm text-[#ded4ef] backdrop-blur-md min-[901px]:bottom-6">{message}</div>
 
-            {state.status !== "PLAYING" && (
-              <div className="absolute inset-0 z-[15] grid place-content-center bg-[radial-gradient(circle,#160f27aa,#08060fef_70%)] text-center">
-                <p className="m-0 text-[0.7rem] tracking-[0.15em] text-[#b7a6d1] uppercase">{state.status === "VICTORY" ? "The rift is sealed" : state.status === "DEFEAT" ? "The link has broken" : "Two hands. One spell."}</p>
-                <h2 className="font-display mt-2 mb-[22px] text-[clamp(2.4rem,7vw,5rem)]">{state.status === "VICTORY" ? "Victory" : state.status === "DEFEAT" ? "Defeat" : "Enter the arena"}</h2>
-                {connection.isHost ? (
-                  <button className="justify-self-center rounded-full border border-[#ff9a6a] bg-linear-to-br from-[#ffd376] to-[#ff7258] px-[22px] py-3 font-bold text-[#180b11] transition-transform hover:scale-105" type="button" onClick={() => dispatch({ type: state.status === "LOBBY" ? "START" : "RESET" })}>
-                    {state.status === "LOBBY" ? "Begin POC" : "Return to lobby"}
-                  </button>
-                ) : (
-                  <p className="m-0 text-[0.7rem] tracking-[0.15em] text-[#b7a6d1] uppercase">Waiting for the host…</p>
-                )}
-              </div>
+            {state.status === "LOBBY" && !bothPicked(characters) ? (
+              connection.myPlayerId && (
+                <CharacterSelect characters={characters} myPlayerId={connection.myPlayerId} onSelect={selectCharacter} />
+              )
+            ) : (
+              state.status !== "PLAYING" && (
+                <div className="absolute inset-0 z-[15] grid place-content-center bg-[radial-gradient(circle,#160f27aa,#08060fef_70%)] text-center">
+                  <p className="m-0 text-[0.7rem] tracking-[0.15em] text-[#b7a6d1] uppercase">{state.status === "VICTORY" ? "The rift is sealed" : state.status === "DEFEAT" ? "The link has broken" : "Two hands. One spell."}</p>
+                  <h2 className="font-display mt-2 mb-[22px] text-[clamp(2.4rem,7vw,5rem)]">{state.status === "VICTORY" ? "Victory" : state.status === "DEFEAT" ? "Defeat" : "Enter the arena"}</h2>
+                  {connection.isHost ? (
+                    <button className="justify-self-center rounded-full border border-[#ff9a6a] bg-linear-to-br from-[#ffd376] to-[#ff7258] px-[22px] py-3 font-bold text-[#180b11] transition-transform hover:scale-105" type="button" onClick={() => dispatch({ type: state.status === "LOBBY" ? "START" : "RESET" })}>
+                      {state.status === "LOBBY" ? "Begin POC" : "Return to lobby"}
+                    </button>
+                  ) : (
+                    <p className="m-0 text-[0.7rem] tracking-[0.15em] text-[#b7a6d1] uppercase">Waiting for the host…</p>
+                  )}
+                </div>
+              )
             )}
 
             <aside className="absolute right-3 bottom-3 left-3 z-20 grid max-h-[41dvh] grid-cols-2 gap-2 overflow-y-auto min-[901px]:top-4 min-[901px]:right-4 min-[901px]:bottom-auto min-[901px]:left-auto min-[901px]:flex min-[901px]:max-h-[calc(100dvh_-_32px)] min-[901px]:w-[340px] min-[901px]:flex-col min-[901px]:gap-3">
