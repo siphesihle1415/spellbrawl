@@ -171,7 +171,7 @@ export function App() {
   return (
     <main className="relative h-dvh w-screen overflow-hidden bg-[#08060f]">
       <section className="absolute inset-0 overflow-hidden">
-        <Arena state={state} enemyColor={encounter.color} />
+        <Arena state={state} enemyColor={encounter.color} characters={characters} />
 
         <header className="absolute top-4 left-4 z-20 flex items-center gap-3 rounded-2xl border border-[#342849] bg-[#0c0915c9] px-4 py-3 backdrop-blur-md">
           <div>
