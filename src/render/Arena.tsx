@@ -13,8 +13,8 @@ const ROOM_CAMERA_X: Record<GameState["round"], number> = {
   SHARD_WARDEN: 6.5,
   HEXWYRM: -6.5,
 };
-const CAMERA_SPAWN_Y = -0.2;
-const CAMERA_SPAWN_Z = 2.15;
+const CAMERA_SPAWN_Y = 0.8;
+const CAMERA_SPAWN_Z = 0;
 const NAVIGATION_X_LIMITS = { min: -8.5, max: 8.5 };
 const NAVIGATION_Z_LIMITS = { near: 2.5, far: 0.35 };
 const MOVE_SPEED = 3;
