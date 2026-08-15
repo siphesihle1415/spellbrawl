@@ -1,62 +1,20 @@
-import { Float, Sparkles, useGLTF } from "@react-three/drei";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { useGLTF } from "@react-three/drei";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Suspense, useEffect, useRef } from "react";
-import { MathUtils, Mesh, type Group, type Object3D } from "three";
+import { MathUtils, Mesh, type Object3D, type PointLight } from "three";
 import type { GameState } from "../game/types";
 
 const SCENE_MESH_URL = "/models/spellbrawl-three-rooms.glb";
-const ROOM_OFFSETS: Record<GameState["round"], number> = {
-  EMBERMAW: 4.65,
-  SHARD_WARDEN: 0,
-  HEXWYRM: -4.65,
+const SCENE_SCALE = 10.5;
+const ROOM_CAMERA_X: Record<GameState["round"], number> = {
+  EMBERMAW: 0,
+  SHARD_WARDEN: 6.5,
+  HEXWYRM: -6.5,
 };
+const CAMERA_SPAWN_Y = -0.2;
+const CAMERA_SPAWN_Z = 2.15;
 
-function Enemy({ state, color }: { state: GameState; color: string }) {
-  const mesh = useRef<Mesh>(null);
-  const shielded = state.phase === "SHIELDED" || state.phase === "ARMOR_PHASE";
-
-  useFrame((clock) => {
-    if (!mesh.current) return;
-    mesh.current.rotation.y = clock.clock.elapsedTime * 0.35;
-    mesh.current.rotation.x = Math.sin(clock.clock.elapsedTime * 0.5) * 0.12;
-  });
-
-  return (
-    <group position={[0, 0.4, 0]}>
-      <Float speed={2} rotationIntensity={0.25} floatIntensity={0.4}>
-        <mesh ref={mesh} castShadow>
-          {state.round === "EMBERMAW" && <icosahedronGeometry args={[1.15, 1]} />}
-          {state.round === "SHARD_WARDEN" && <octahedronGeometry args={[1.25, 0]} />}
-          {state.round === "HEXWYRM" && <torusKnotGeometry args={[0.8, 0.28, 96, 12]} />}
-          <meshStandardMaterial
-            color={color}
-            emissive={color}
-            emissiveIntensity={state.status === "VICTORY" ? 2.5 : 0.7}
-            roughness={0.32}
-            metalness={0.35}
-          />
-        </mesh>
-        {shielded && (
-          <mesh>
-            <sphereGeometry args={[1.65, 32, 32]} />
-            <meshPhysicalMaterial
-              color="#8cecff"
-              transmission={0.75}
-              transparent
-              opacity={0.35}
-              roughness={0.05}
-              thickness={0.25}
-            />
-          </mesh>
-        )}
-      </Float>
-      <Sparkles count={50} scale={4} size={2.2} speed={0.4} color={color} />
-    </group>
-  );
-}
-
-function SceneMesh({ round }: { round: GameState["round"] }) {
-  const roomGroup = useRef<Group>(null);
+function SceneMesh() {
   const { scene } = useGLTF(SCENE_MESH_URL);
 
   useEffect(() => {
@@ -68,43 +26,73 @@ function SceneMesh({ round }: { round: GameState["round"] }) {
     });
   }, [scene]);
 
-  useFrame((_, delta) => {
-    if (!roomGroup.current) return;
-    roomGroup.current.position.x = MathUtils.damp(
-      roomGroup.current.position.x,
-      ROOM_OFFSETS[round],
-      3.5,
-      delta,
-    );
-  });
-
   return (
-    <group ref={roomGroup} position={[ROOM_OFFSETS[round], 0.5, 0]} scale={7.5}>
+    <group position={[0, 0.5, 0]} scale={SCENE_SCALE}>
       <primitive object={scene} />
     </group>
   );
 }
 
+function RoomCamera({ round }: { round: GameState["round"] }) {
+  const { camera } = useThree();
+  const light = useRef<PointLight>(null);
+
+  useEffect(() => {
+    const roomX = ROOM_CAMERA_X[round];
+    camera.position.y = CAMERA_SPAWN_Y;
+    camera.position.z = CAMERA_SPAWN_Z;
+    camera.lookAt(roomX, CAMERA_SPAWN_Y, -2);
+  }, [camera, round]);
+
+  useFrame((_, delta) => {
+    const roomX = ROOM_CAMERA_X[round];
+
+    camera.position.x = MathUtils.damp(camera.position.x, roomX, 3.5, delta);
+    camera.position.y = MathUtils.damp(camera.position.y, CAMERA_SPAWN_Y, 3.5, delta);
+    camera.position.z = MathUtils.damp(camera.position.z, CAMERA_SPAWN_Z, 3.5, delta);
+    camera.lookAt(camera.position.x, CAMERA_SPAWN_Y, -2);
+
+    if (light.current) {
+      light.current.position.x = MathUtils.damp(
+        light.current.position.x,
+        camera.position.x + 1.2,
+        3.5,
+        delta,
+      );
+      light.current.position.z = camera.position.z + 0.5;
+    }
+  });
+
+  return (
+    <pointLight
+      ref={light}
+      position={[ROOM_CAMERA_X[round] + 1.2, 1.8, CAMERA_SPAWN_Z + 0.5]}
+      intensity={18}
+      color="#7755ff"
+      distance={14}
+    />
+  );
+}
+
 useGLTF.preload(SCENE_MESH_URL);
 
-export function Arena({ state, enemyColor }: { state: GameState; enemyColor: string }) {
+export function Arena({ round }: { round: GameState["round"] }) {
   return (
     <div className="absolute inset-0 h-full w-full">
       <Canvas
         className="h-full w-full"
         dpr={[1, 1.5]}
         shadows
-        camera={{ position: [0, 3.8, 6.2], fov: 48 }}
+        camera={{ position: [ROOM_CAMERA_X[round], CAMERA_SPAWN_Y, CAMERA_SPAWN_Z], fov: 60 }}
       >
         <color attach="background" args={["#08060f"]} />
-        <fog attach="fog" args={["#08060f", 8, 18]} />
-        <ambientLight intensity={0.8} />
+        <fog attach="fog" args={["#08060f", 10, 24]} />
+        <ambientLight intensity={1} />
         <directionalLight position={[4, 7, 4]} intensity={2.8} castShadow color="#ffd7b0" />
-        <pointLight position={[-3, 2, 2]} intensity={18} color="#7755ff" distance={10} />
         <Suspense fallback={null}>
-          <SceneMesh round={state.round} />
+          <SceneMesh />
         </Suspense>
-        <Enemy state={state} color={enemyColor} />
+        <RoomCamera round={round} />
       </Canvas>
     </div>
   );
