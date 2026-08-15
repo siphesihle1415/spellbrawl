@@ -23,16 +23,10 @@ const PREVIEW_SPEED = 0.7;
 const PREVIEW_BOUNDS = { minX: -2, maxX: 2, minZ: -1.15, maxZ: 1.15 };
 export const criticalAssetCount = 4;
 
-function AssetReadiness({ onAssetLoaded }: { onAssetLoaded?: (assetUrl: string) => void }) {
-  const environment = useGLTF(SCENE_MESH_URL);
-  const embermaw = useGLTF(activeMonsterModelUrl("EMBERMAW"));
-  const shardWarden = useGLTF(activeMonsterModelUrl("SHARD_WARDEN"));
-  const hexwyrm = useGLTF(activeMonsterModelUrl("HEXWYRM"));
+function AssetReadiness({ assetUrl, onAssetLoaded }: { assetUrl: string; onAssetLoaded?: (assetUrl: string) => void }) {
+  const asset = useGLTF(assetUrl);
 
-  useEffect(() => onAssetLoaded?.(SCENE_MESH_URL), [environment, onAssetLoaded]);
-  useEffect(() => onAssetLoaded?.(activeMonsterModelUrl("EMBERMAW")), [embermaw, onAssetLoaded]);
-  useEffect(() => onAssetLoaded?.(activeMonsterModelUrl("SHARD_WARDEN")), [shardWarden, onAssetLoaded]);
-  useEffect(() => onAssetLoaded?.(activeMonsterModelUrl("HEXWYRM")), [hexwyrm, onAssetLoaded]);
+  useEffect(() => onAssetLoaded?.(assetUrl), [asset, assetUrl, onAssetLoaded]);
 
   return null;
 }
@@ -188,7 +182,18 @@ export function Arena({ state, enemyColor, preview = false, resetKey = 0, onAsse
         <ambientLight intensity={1} />
         <directionalLight position={[4, 7, 4]} intensity={2.8} castShadow color="#ffd7b0" />
         <Suspense fallback={null}>
-          <AssetReadiness onAssetLoaded={onAssetLoaded} />
+          <AssetReadiness assetUrl={SCENE_MESH_URL} onAssetLoaded={onAssetLoaded} />
+        </Suspense>
+        <Suspense fallback={null}>
+          <AssetReadiness assetUrl={activeMonsterModelUrl("EMBERMAW")} onAssetLoaded={onAssetLoaded} />
+        </Suspense>
+        <Suspense fallback={null}>
+          <AssetReadiness assetUrl={activeMonsterModelUrl("SHARD_WARDEN")} onAssetLoaded={onAssetLoaded} />
+        </Suspense>
+        <Suspense fallback={null}>
+          <AssetReadiness assetUrl={activeMonsterModelUrl("HEXWYRM")} onAssetLoaded={onAssetLoaded} />
+        </Suspense>
+        <Suspense fallback={null}>
           <SceneMesh />
           <Enemy state={state} color={enemyColor} />
         </Suspense>
