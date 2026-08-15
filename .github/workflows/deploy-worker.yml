@@ -1,14 +1,14 @@
-name: Deploy PartyKit room server
+name: Deploy Cloudflare Worker room server
 
 on:
   push:
     branches: [main]
     paths:
-      - "party/**"
-      - "partykit.json"
+      - "worker/**"
+      - "wrangler.jsonc"
       - "package.json"
       - "package-lock.json"
-      - ".github/workflows/deploy-partykit.yml"
+      - ".github/workflows/deploy-worker.yml"
   workflow_dispatch: {}
 
 jobs:
@@ -23,7 +23,7 @@ jobs:
 
       - run: npm ci
 
-      - run: npx partykit deploy
-        env:
-          PARTYKIT_LOGIN: ${{ secrets.PARTYKIT_LOGIN }}
-          PARTYKIT_TOKEN: ${{ secrets.PARTYKIT_TOKEN }}
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
