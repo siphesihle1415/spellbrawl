@@ -45,8 +45,12 @@ export function App() {
     setConnection({ status: "CONNECTING", code });
     try {
       await transport.connect(code);
-    } catch {
-      setConnectError("Could not reach the room. Check the code and try again.");
+    } catch (error) {
+      setConnectError(
+        error instanceof Error && error.message.includes("Timed out")
+          ? "Room server unavailable. For local testing, start the app with npm run dev."
+          : "Could not reach the room. Check the code and try again.",
+      );
       setConnection({ status: "IDLE" });
     }
   };

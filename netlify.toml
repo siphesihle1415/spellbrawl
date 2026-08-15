@@ -5,6 +5,12 @@
 [build.environment]
   NODE_VERSION = "22"
 
+[dev]
+  framework = "#custom"
+  command = "vite"
+  targetPort = 5173
+  port = 8888
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
