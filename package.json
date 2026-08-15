@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "deploy:worker": "wrangler deploy",
     "test": "vitest run",
-    "assets:compress-characters": "node scripts/compress-characters.mjs"
+    "assets:compress-characters": "node scripts/compress-characters.mjs",
+    "assets:compress-monsters": "node scripts/compress-monsters.mjs"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.1",
