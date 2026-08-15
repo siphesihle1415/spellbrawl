@@ -22,7 +22,7 @@ The source GLB is approximately 176 MB and was not copied directly into the repo
 The web-optimized asset is:
 
 ```text
-public/models/spellbrawl-three-rooms.glb
+public/models/spellbrawl-three-rooms-open-lighting.glb
 ```
 
 It is approximately 7.5 MB and uses Meshopt geometry compression, quantized geometry, and 2048px WebP textures. The optimization reduced the uploaded vertex count from roughly 2.54 million to 570,000.
@@ -33,7 +33,7 @@ The reproducible optimization command is:
 mkdir -p public/models
 npx --yes @gltf-transform/cli@4.2.1 optimize \
   /mnt/d/percy/Downloads/Scene/Meshy_AI_three_connected_rooms_0815145102_image-to-3d-texture.glb \
-  public/models/spellbrawl-three-rooms.glb \
+  public/models/spellbrawl-three-rooms-open-lighting.glb \
   --compress meshopt \
   --meshopt-level high \
   --simplify true \

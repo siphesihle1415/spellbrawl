@@ -6,7 +6,7 @@ import type { CharacterSelections } from "../game/characters";
 import type { GameState } from "../game/types";
 import { PlayerAvatar } from "./PlayerAvatar";
 
-const SCENE_MESH_URL = "/models/spellbrawl-three-rooms.glb";
+const SCENE_MESH_URL = "/models/spellbrawl-three-rooms-open-lighting.glb";
 const SCENE_SCALE = 10.5;
 const ROOM_CAMERA_X: Record<GameState["round"], number> = {
   EMBERMAW: 0,
