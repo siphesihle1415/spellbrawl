@@ -1,16 +1,25 @@
-import type * as Party from "partykit/server";
+export interface Connection {
+  readonly id: string;
+  send(message: string): void;
+  close(code: number, reason: string): void;
+}
 
-type PlayerId = "PLAYER_A" | "PLAYER_B";
+export interface Room {
+  getConnections(): Iterable<Connection>;
+  broadcast(message: string, without?: string[]): void;
+}
+
+export type PlayerId = "PLAYER_A" | "PLAYER_B";
 
 const ROOM_CAPACITY = 2;
 
-export default class RoomServer implements Party.Server {
+export class RoomLogic {
   private readonly acceptedConnectionIds = new Set<string>();
   private readonly readyPlayerIds = new Set<PlayerId>();
 
-  constructor(readonly room: Party.Room) {}
+  constructor(private readonly room: Room) {}
 
-  onConnect(connection: Party.Connection): void {
+  onConnect(connection: Connection): void {
     const connections = [...this.room.getConnections()];
     if (connections.length > ROOM_CAPACITY) {
       connection.close(4000, "Room full");
@@ -30,7 +39,7 @@ export default class RoomServer implements Party.Server {
     }
   }
 
-  onMessage(message: string, sender: Party.Connection): void {
+  onMessage(message: string, sender: Connection): void {
     const event = JSON.parse(message) as { type: string; playerId?: PlayerId };
     if (event.type === "PLAYER_READY" && event.playerId) {
       this.readyPlayerIds.add(event.playerId);
@@ -38,7 +47,7 @@ export default class RoomServer implements Party.Server {
     this.room.broadcast(message, [sender.id]);
   }
 
-  onClose(connection: Party.Connection): void {
+  onClose(connection: Connection): void {
     // A connection rejected for being the 3rd in the room never joins acceptedConnectionIds,
     // so its close must not be mistaken for the real peer leaving.
     if (!this.acceptedConnectionIds.delete(connection.id)) return;
