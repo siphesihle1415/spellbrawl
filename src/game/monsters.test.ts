@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ACTIVE_MONSTER_VARIANT, MONSTER_VARIANTS, activeMonsterModelUrl, resolveVariant } from "./monsters";
+import { ACTIVE_MONSTER_VARIANT, EMBERMAW_ANIMATION_URLS, MONSTER_VARIANTS, activeMonsterModelUrl, resolveVariant } from "./monsters";
 
 describe("resolveVariant", () => {
   const variants = [
@@ -22,6 +22,17 @@ describe("activeMonsterModelUrl", () => {
       const expected = MONSTER_VARIANTS[round].find((v) => v.id === ACTIVE_MONSTER_VARIANT[round]);
       expect(expected).toBeDefined();
       expect(activeMonsterModelUrl(round)).toBe(expected!.modelUrl);
+    });
+  });
+});
+
+describe("EMBERMAW_ANIMATION_URLS", () => {
+  it("points at the four compressed animation clips under public/models/monsters", () => {
+    expect(EMBERMAW_ANIMATION_URLS).toEqual({
+      walking: "/models/monsters/embermaw-walking.glb",
+      zombieScream: "/models/monsters/embermaw-zombie-scream.glb",
+      jumpingPunch: "/models/monsters/embermaw-jumping-punch.glb",
+      fallingDown: "/models/monsters/embermaw-falling-down.glb",
     });
   });
 });

@@ -28,3 +28,15 @@ export function resolveVariant(variants: MonsterVariant[], activeId: string): Mo
 export function activeMonsterModelUrl(round: RoundId): string {
   return resolveVariant(MONSTER_VARIANTS[round], ACTIVE_MONSTER_VARIANT[round]).modelUrl;
 }
+
+export const EMBERMAW_ANIMATION_URLS = {
+  walking: "/models/monsters/embermaw-walking.glb",
+  zombieScream: "/models/monsters/embermaw-zombie-scream.glb",
+  jumpingPunch: "/models/monsters/embermaw-jumping-punch.glb",
+  fallingDown: "/models/monsters/embermaw-falling-down.glb",
+} as const;
+
+export const EMBERMAW_ANIMATED_TRANSFORM: { scale: number; position: [number, number, number] } = {
+  scale: 1,
+  position: [0, 0, 0],
+};
