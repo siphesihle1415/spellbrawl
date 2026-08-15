@@ -30,9 +30,10 @@ jobs:
 
       - name: Sync director provider for Netlify Functions
         run: |
-          for variable in LLM_DIRECTOR_PROVIDER LLM_DIRECTOR_TIMEOUT_MS ANTHROPIC_BASE_URL ANTHROPIC_DIRECTOR_MODEL; do
+          for variable in LLM_DIRECTOR_PROVIDER LLM_DIRECTOR_TIMEOUT_MS ANTHROPIC_BASE_URL; do
             npx --yes netlify-cli@27.1.1 env:set "$variable" "${!variable}" --context production --scope functions --secret --force --site="$NETLIFY_SITE_ID" --auth="$NETLIFY_AUTH_TOKEN"
           done
+          npx --yes netlify-cli@27.1.1 env:set ANTHROPIC_DIRECTOR_MODEL "claude-3-5-haiku-20241022" --context production --scope functions --secret --force --site="$NETLIFY_SITE_ID" --auth="$NETLIFY_AUTH_TOKEN"
           npx --yes netlify-cli@27.1.1 env:set ANTHROPIC_API_KEY "$ANTHROPIC_API_KEY" --context production --scope functions --secret --force --site="$NETLIFY_SITE_ID" --auth="$NETLIFY_AUTH_TOKEN"
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
@@ -41,7 +42,6 @@ jobs:
           LLM_DIRECTOR_TIMEOUT_MS: ${{ secrets.LLM_DIRECTOR_TIMEOUT_MS }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
-          ANTHROPIC_DIRECTOR_MODEL: ${{ secrets.ANTHROPIC_DIRECTOR_MODEL }}
 
       - name: Publish to Netlify production
         run: npx --yes netlify-cli@27.1.1 deploy --prod --dir=dist --site="$NETLIFY_SITE_ID" --auth="$NETLIFY_AUTH_TOKEN"
