@@ -1,8 +1,15 @@
-import { Float, Sparkles } from "@react-three/drei";
+import { Float, Sparkles, useGLTF } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { useRef } from "react";
-import type { Mesh } from "three";
+import { Suspense, useEffect, useRef } from "react";
+import { MathUtils, Mesh, type Group, type Object3D } from "three";
 import type { GameState } from "../game/types";
+
+const SCENE_MESH_URL = "/models/spellbrawl-three-rooms.glb";
+const ROOM_OFFSETS: Record<GameState["round"], number> = {
+  EMBERMAW: 4.65,
+  SHARD_WARDEN: 0,
+  HEXWYRM: -4.65,
+};
 
 function Enemy({ state, color }: { state: GameState; color: string }) {
   const mesh = useRef<Mesh>(null);
@@ -48,32 +55,56 @@ function Enemy({ state, color }: { state: GameState; color: string }) {
   );
 }
 
-function Ground() {
+function SceneMesh({ round }: { round: GameState["round"] }) {
+  const roomGroup = useRef<Group>(null);
+  const { scene } = useGLTF(SCENE_MESH_URL);
+
+  useEffect(() => {
+    scene.traverse((child: Object3D) => {
+      if (child instanceof Mesh) {
+        child.castShadow = false;
+        child.receiveShadow = true;
+      }
+    });
+  }, [scene]);
+
+  useFrame((_, delta) => {
+    if (!roomGroup.current) return;
+    roomGroup.current.position.x = MathUtils.damp(
+      roomGroup.current.position.x,
+      ROOM_OFFSETS[round],
+      3.5,
+      delta,
+    );
+  });
+
   return (
-    <group position={[0, -1.25, 0]}>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <cylinderGeometry args={[4.7, 5.2, 0.25, 64]} />
-        <meshStandardMaterial color="#151021" roughness={0.7} metalness={0.2} />
-      </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.14, 0]}>
-        <ringGeometry args={[3.2, 3.28, 64]} />
-        <meshBasicMaterial color="#7b5cff" />
-      </mesh>
+    <group ref={roomGroup} position={[ROOM_OFFSETS[round], 0.5, 0]} scale={7.5}>
+      <primitive object={scene} />
     </group>
   );
 }
 
+useGLTF.preload(SCENE_MESH_URL);
+
 export function Arena({ state, enemyColor }: { state: GameState; enemyColor: string }) {
   return (
     <div className="absolute inset-0 h-full w-full">
-      <Canvas className="h-full w-full" shadows camera={{ position: [0, 1.6, 6.2], fov: 45 }}>
+      <Canvas
+        className="h-full w-full"
+        dpr={[1, 1.5]}
+        shadows
+        camera={{ position: [0, 3.8, 6.2], fov: 48 }}
+      >
         <color attach="background" args={["#08060f"]} />
-        <fog attach="fog" args={["#08060f", 6, 13]} />
-        <ambientLight intensity={0.6} />
-        <directionalLight position={[4, 6, 3]} intensity={2.5} castShadow color="#ffd7b0" />
-        <pointLight position={[-4, 1, 1]} intensity={16} color="#7755ff" distance={8} />
+        <fog attach="fog" args={["#08060f", 8, 18]} />
+        <ambientLight intensity={0.8} />
+        <directionalLight position={[4, 7, 4]} intensity={2.8} castShadow color="#ffd7b0" />
+        <pointLight position={[-3, 2, 2]} intensity={18} color="#7755ff" distance={10} />
+        <Suspense fallback={null}>
+          <SceneMesh round={state.round} />
+        </Suspense>
         <Enemy state={state} color={enemyColor} />
-        <Ground />
       </Canvas>
     </div>
   );
