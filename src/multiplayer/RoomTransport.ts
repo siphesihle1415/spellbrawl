@@ -21,5 +21,5 @@ export interface RoomTransport {
   disconnect(): void;
 }
 
-// The production adapter (PartyKitRoomTransport) implements this contract. Keeping this
+// The production adapter (CloudflareRoomTransport) implements this contract. Keeping this
 // interface semantic prevents video frames and landmarks entering transport code.
