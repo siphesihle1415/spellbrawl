@@ -2,7 +2,6 @@ import type { Gesture } from "../game/types";
 
 export type Landmark = { x: number; y: number; z: number };
 export type PoseResult = { gesture: Gesture; confidence: number };
-export type FistSample = { scale: number; at: number };
 
 const WRIST = 0;
 const THUMB_TIP = 4;
@@ -18,8 +17,6 @@ const PINKY_TIP = 20;
 
 const PINCH_RATIO_THRESHOLD = 0.4;
 const HANDS_APART_RATIO_THRESHOLD = 3.5;
-const THRUST_WINDOW_MS = 250;
-const THRUST_GROWTH_RATIO = 1.4;
 
 function dist(a: Landmark, b: Landmark): number {
   const dx = a.x - b.x;
@@ -76,18 +73,6 @@ export function classifyPose(hands: Landmark[][]): PoseResult | null {
   }
 
   return classifySingleHand(hands[0]);
-}
-
-export function classifyThrust(history: FistSample[]): boolean {
-  if (history.length < 2) return false;
-
-  const latest = history[history.length - 1];
-  const windowStart = latest.at - THRUST_WINDOW_MS;
-  const earliestInWindow = history.find((sample) => sample.at >= windowStart);
-
-  if (!earliestInWindow || earliestInWindow === latest || earliestInWindow.scale <= 0) return false;
-
-  return latest.scale / earliestInWindow.scale >= THRUST_GROWTH_RATIO;
 }
 
 // exported for reuse by handScale-dependent checks

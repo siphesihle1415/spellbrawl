@@ -19,7 +19,7 @@ The POC proves four things:
 
 ## POC success condition
 
-Two people on separate devices can create and join a room, use `FIST → THRUST` to cast Firebolt, use `OPEN_PALM` to defend, complete Embermaw and Shard Warden, perform the Hexwyrm co-op mechanics, and finish with Starfall.
+Two people on separate devices can create and join a room, use `FIST → OPEN_PALM` to cast Firebolt, use `OPEN_PALM` to defend, complete Embermaw and Shard Warden, perform the Hexwyrm co-op mechanics, and finish with Starfall.
 
 ## Current implementation
 
@@ -30,6 +30,6 @@ npm install
 npm run dev
 ```
 
-Click **Begin POC**, then use the gesture buttons. Keyboard shortcuts `1`–`6` control Player A and `Shift+1`–`Shift+6` control the simulated Player B. The controls map to `FIST`, `THRUST`, `OPEN_PALM`, `POINT`, `PINCH`, and `HANDS_APART` in that order.
+Click **Begin POC**, then use the gesture buttons. Keyboard shortcuts `1`–`5` control Player A and `Shift+1`–`Shift+5` control the simulated Player B. The controls map to `FIST`, `OPEN_PALM`, `POINT`, `PINCH`, and `HANDS_APART` in that order.
 
 Implemented now: deterministic three-round combat, shared HP, enemy attacks, co-op recipes, a basic R3F arena, MediaPipe hand landmarks, normalized gesture geometry, temporal confirmation, keyboard fallback controls, tests, and a multiplayer adapter contract. Cross-device room transport is the next integration step.

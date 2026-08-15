@@ -2,11 +2,10 @@ import type { Gesture } from "../game/types";
 
 const controls: Array<{ gesture: Gesture; label: string; key: string }> = [
   { gesture: "FIST", label: "Fist", key: "1" },
-  { gesture: "THRUST", label: "Thrust", key: "2" },
-  { gesture: "OPEN_PALM", label: "Open palm", key: "3" },
-  { gesture: "POINT", label: "Point", key: "4" },
-  { gesture: "PINCH", label: "Pinch", key: "5" },
-  { gesture: "HANDS_APART", label: "Hands apart", key: "6" },
+  { gesture: "OPEN_PALM", label: "Open palm", key: "2" },
+  { gesture: "POINT", label: "Point", key: "3" },
+  { gesture: "PINCH", label: "Pinch", key: "4" },
+  { gesture: "HANDS_APART", label: "Hands apart", key: "5" },
 ];
 
 export function GestureControls({ onGesture }: { onGesture: (gesture: Gesture) => void }) {
@@ -14,7 +13,7 @@ export function GestureControls({ onGesture }: { onGesture: (gesture: Gesture) =
     <section className="rounded-[15px] border border-[#2e2440] bg-[#100c19cc] p-[11px]">
       <div className="mx-0.5 mt-px mb-[9px] flex items-baseline justify-between">
         <span className="font-display text-sm">Your gestures</span>
-        <small className="text-[0.62rem] text-[#81738f]">Keyboard 1–6</small>
+        <small className="text-[0.62rem] text-[#81738f]">Keyboard 1–5</small>
       </div>
       <div className="grid grid-cols-2 gap-1.5">
         {controls.map((control) => (

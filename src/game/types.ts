@@ -5,8 +5,7 @@ export type Gesture =
   | "OPEN_PALM"
   | "POINT"
   | "PINCH"
-  | "HANDS_APART"
-  | "THRUST";
+  | "HANDS_APART";
 
 export type RoundId = "EMBERMAW" | "SHARD_WARDEN" | "HEXWYRM";
 
