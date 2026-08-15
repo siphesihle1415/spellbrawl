@@ -12,7 +12,11 @@ const ROOM_CAMERA_X: Record<GameState["round"], number> = {
   SHARD_WARDEN: 1.4,
   HEXWYRM: -1.4,
 };
-const CAMERA_SPAWN_Y = 1.05;
+const ROOM_CAMERA_Y: Record<GameState["round"], number> = {
+  EMBERMAW: 0.9,
+  SHARD_WARDEN: 0.78,
+  HEXWYRM: 0.78,
+};
 const CAMERA_SPAWN_Z = 0.35;
 const MONSTER_Z = -0.85;
 const PREVIEW_SPEED = 0.7;
@@ -46,7 +50,7 @@ function RoomCamera({ round, preview, resetKey }: { round: GameState["round"]; p
 
   useEffect(() => {
     camera.position.x = ROOM_CAMERA_X[round];
-    camera.position.y = CAMERA_SPAWN_Y;
+    camera.position.y = ROOM_CAMERA_Y[round];
     camera.position.z = CAMERA_SPAWN_Z;
     camera.lookAt(ROOM_CAMERA_X[round], 0.9, MONSTER_Z);
   }, [camera, resetKey, round]);
@@ -66,6 +70,7 @@ function RoomCamera({ round, preview, resetKey }: { round: GameState["round"]; p
 
   useFrame((_, delta) => {
     const roomX = ROOM_CAMERA_X[round];
+    const roomY = ROOM_CAMERA_Y[round];
     if (preview) {
       camera.getWorldDirection(direction.current);
       direction.current.y = 0;
@@ -77,11 +82,11 @@ function RoomCamera({ round, preview, resetKey }: { round: GameState["round"]; p
       if (keys.current.has("KeyA") || keys.current.has("ArrowLeft")) camera.position.addScaledVector(right.current, -distance);
       if (keys.current.has("KeyD") || keys.current.has("ArrowRight")) camera.position.addScaledVector(right.current, distance);
       camera.position.x = MathUtils.clamp(camera.position.x, PREVIEW_BOUNDS.minX, PREVIEW_BOUNDS.maxX);
-      camera.position.y = CAMERA_SPAWN_Y;
+      camera.position.y = roomY;
       camera.position.z = MathUtils.clamp(camera.position.z, PREVIEW_BOUNDS.minZ, PREVIEW_BOUNDS.maxZ);
     } else {
       camera.position.x = MathUtils.damp(camera.position.x, roomX, 3.5, delta);
-      camera.position.y = MathUtils.damp(camera.position.y, CAMERA_SPAWN_Y, 3.5, delta);
+      camera.position.y = MathUtils.damp(camera.position.y, roomY, 3.5, delta);
       camera.position.z = MathUtils.damp(camera.position.z, CAMERA_SPAWN_Z, 3.5, delta);
       camera.lookAt(camera.position.x, 0.9, MONSTER_Z);
     }
@@ -161,7 +166,7 @@ export function Arena({ state, enemyColor, preview = false, resetKey = 0 }: { st
         className="h-full w-full"
         dpr={[1, 1.5]}
         shadows
-        camera={{ position: [roomX, CAMERA_SPAWN_Y, CAMERA_SPAWN_Z], fov: 60 }}
+        camera={{ position: [roomX, ROOM_CAMERA_Y[state.round], CAMERA_SPAWN_Z], fov: 68 }}
       >
         <color attach="background" args={["#08060f"]} />
         <fog attach="fog" args={["#08060f", 10, 24]} />
