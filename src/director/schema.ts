@@ -6,19 +6,31 @@ const ThemeSchema = Schema.Literal(...directorThemes);
 
 const EmbermawSchema = Schema.Struct({
   name: Schema.Literal("Embermaw", "Cinderfang", "Ashclaw"),
-  title: Schema.Literal("The Starved Flame", "The Furnace Beast", "Hunger of the Pyre"),
+  title: Schema.Literal(
+    "The Starved Flame",
+    "The Furnace Beast",
+    "Hunger of the Pyre",
+  ),
   theme: ThemeSchema,
 });
 
 const ShardWardenSchema = Schema.Struct({
   name: Schema.Literal("Shard Warden", "Rift Sentinel", "Crystal Keeper"),
-  title: Schema.Literal("Keeper of the Rift", "The Fractured Guard", "Warden of Glass"),
+  title: Schema.Literal(
+    "Keeper of the Rift",
+    "The Fractured Guard",
+    "Warden of Glass",
+  ),
   theme: ThemeSchema,
 });
 
 const HexwyrmSchema = Schema.Struct({
   name: Schema.Literal("The Hexwyrm", "Vhar'Zul", "The Riftwyrm"),
-  title: Schema.Literal("Devourer Beyond the Veil", "The Last Calamity", "Sovereign of the Void"),
+  title: Schema.Literal(
+    "Devourer Beyond the Veil",
+    "The Last Calamity",
+    "Sovereign of the Void",
+  ),
   theme: ThemeSchema,
 });
 
@@ -41,10 +53,16 @@ export const RunConfigurationSchema = Schema.Struct({
 export type RunConfiguration = typeof RunConfigurationSchema.Type;
 export type DirectorTheme = typeof ThemeSchema.Type;
 
-export const runConfigurationJsonSchema = JSONSchema.make(RunConfigurationSchema);
+export const runConfigurationJsonSchema = JSONSchema.make(
+  RunConfigurationSchema,
+);
 
-export function decodeRunConfiguration(input: unknown): RunConfiguration | null {
+export function decodeRunConfiguration(
+  input: unknown,
+): RunConfiguration | null {
   return Either.getOrNull(
-    Schema.decodeUnknownEither(RunConfigurationSchema, { onExcessProperty: "error" })(input),
+    Schema.decodeUnknownEither(RunConfigurationSchema, {
+      onExcessProperty: "error",
+    })(input),
   );
 }
