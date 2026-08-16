@@ -134,7 +134,7 @@ function RoomCamera({ round, playerId, preview, resetKey, effect }: { round: Gam
 function PlayerPositions({ roomX, shielded }: { roomX: number; shielded: boolean }) {
   return (
     <group>
-      {([-0.72, 0.72] as const).map((offset, index) => (
+      {([-0.48, 0.48] as const).map((offset, index) => (
         <group key={offset} position={[roomX + offset, 0.28, -0.62]}>
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
             <ringGeometry args={[0.12, 0.16, 32]} />

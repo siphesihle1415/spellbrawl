@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import type { GameState, Gesture, PlayerId } from "../game/types";
 import { GestureGlyph, gestureLabel } from "./GestureGlyph";
 
@@ -42,11 +42,7 @@ function Recipe({ move }: { move: Move }) {
         {move.recipe.map((step, index) => (
           <div className="recipe-fragment" key={`${step.gesture}-${index}`}>
             {index > 0 && <span className="recipe-operator">{move.id === "breath" ? "+" : "→"}</span>}
-            <div className="recipe-step">
-              {step.role && <b>{step.role}</b>}
-              <GestureGlyph gesture={step.gesture} />
-              <small>{step.label ?? gestureLabel(step.gesture)}</small>
-            </div>
+            <div className="recipe-step">{step.role && <b>{step.role}</b>}<GestureGlyph gesture={step.gesture} /><small>{step.label ?? gestureLabel(step.gesture)}</small></div>
           </div>
         ))}
       </div>
@@ -55,31 +51,63 @@ function Recipe({ move }: { move: Move }) {
   );
 }
 
-export function MoveMenu({ state, playerId, now }: { state: GameState; playerId: PlayerId; now: number }) {
+function DetailedSpell({ move, index, available, active, progress }: { move: Move; index: number; available: boolean; active: boolean; progress: number }) {
   return (
-    <aside className="move-menu" aria-label="Spell moves">
-      <div className="move-grid">
-        {moves.map((move, index) => {
-          const available = state.status === "PLAYING" && move.available(state);
-          const progress = available ? moveProgress(move, state, playerId, now) : 0;
-          const active = available && isActive(move, state, progress);
-          return (
-            <article key={move.id} className={`spell-card ${available ? "is-available" : "is-disabled"} ${active ? "is-active" : ""}`} style={{ "--move-color": move.tone, "--move-progress": `${progress * 100}%` } as CSSProperties}>
-              <header className="spell-title"><span className="spell-symbol">{move.icon}</span><div><strong>{index + 1}. {move.name}</strong><small>{move.category}</small></div></header>
-              <Recipe move={move} />
-              <div className="spell-states">
-                <div className="spell-state is-ready"><div className="spell-orb"><span>{move.icon}</span><i /></div><b>{active ? "Casting" : "Available"}</b></div>
-                <div className="spell-state is-locked"><div className="spell-orb"><span>{move.icon}</span></div><b>Not available</b></div>
-              </div>
-              <p>{move.description}</p>
-            </article>
-          );
-        })}
+    <article className={`spell-card ${available ? "is-available" : "is-disabled"} ${active ? "is-active" : ""}`} style={{ "--move-color": move.tone, "--move-progress": `${progress * 100}%` } as CSSProperties}>
+      <header className="spell-title"><span className="spell-symbol">{move.icon}</span><div><strong>{index + 1}. {move.name}</strong><small>{move.category}</small></div></header>
+      <Recipe move={move} />
+      <div className="spell-states">
+        <div className="spell-state is-ready"><div className="spell-orb"><span>{move.icon}</span><i /></div><b>{active ? "Casting" : "Available"}</b></div>
+        <div className="spell-state is-locked"><div className="spell-orb"><span>{move.icon}</span></div><b>Not available</b></div>
       </div>
-      <footer className="spell-legend">
-        {(["FIST", "OPEN_PALM", "PINCH", "POINT"] as Gesture[]).map((gesture) => <span key={gesture}><GestureGlyph gesture={gesture} /> {gestureLabel(gesture)}</span>)}
-        <span><b>P1</b> = Player 1</span><span><b>P2</b> = Player 2</span>
-      </footer>
-    </aside>
+      <p>{move.description}</p>
+    </article>
+  );
+}
+
+export function MoveMenu({ state, playerId, now }: { state: GameState; playerId: PlayerId; now: number }) {
+  const [helpOpen, setHelpOpen] = useState(false);
+  const moveStates = moves.map((move) => {
+    const available = state.status === "PLAYING" && move.available(state);
+    const progress = available ? moveProgress(move, state, playerId, now) : 0;
+    return { move, available, progress, active: available && isActive(move, state, progress) };
+  });
+
+  useEffect(() => {
+    if (!helpOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setHelpOpen(false); };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [helpOpen]);
+
+  return (
+    <>
+      <aside className="move-menu" aria-label="Spell moves">
+        <header className="compact-menu-heading"><div><small>Spellbook</small><strong>Moves</strong></div><button type="button" onClick={() => setHelpOpen(true)} aria-label="Open move help">? Help</button></header>
+        <div className="compact-moves">
+          {moveStates.map(({ move, available, active, progress }, index) => (
+            <article key={move.id} className={`compact-spell ${available ? "is-available" : "is-disabled"} ${active ? "is-active" : ""}`} style={{ "--move-color": move.tone, "--move-progress": `${progress * 100}%` } as CSSProperties}>
+              <i className="compact-progress" /><span className="compact-symbol">{move.icon}</span>
+              <div className="compact-copy"><strong>{index + 1}. {move.name}</strong><small>{move.category}</small></div>
+              <div className="compact-recipe">{move.recipe.map((step, recipeIndex) => <GestureGlyph key={`${step.gesture}-${recipeIndex}`} gesture={step.gesture} />)}</div>
+              <b className="compact-status">{active ? "Casting" : available ? "Ready" : "Locked"}</b>
+            </article>
+          ))}
+        </div>
+      </aside>
+
+      {helpOpen && (
+        <div className="spell-help-overlay" role="dialog" aria-modal="true" aria-label="Move help">
+          <section className="spell-help-panel">
+            <header className="spell-help-heading"><div><small>SpellBrawl field guide</small><h2>Move help</h2></div><button type="button" onClick={() => setHelpOpen(false)} aria-label="Close move help">Close ×</button></header>
+            <div className="help-spell-grid">{moveStates.map((moveState, index) => <DetailedSpell key={moveState.move.id} index={index} {...moveState} />)}</div>
+            <footer className="spell-legend">
+              {(["FIST", "OPEN_PALM", "PINCH", "POINT"] as Gesture[]).map((gesture) => <span key={gesture}><GestureGlyph gesture={gesture} /> {gestureLabel(gesture)}</span>)}
+              <span><b>P1</b> = Player 1</span><span><b>P2</b> = Player 2</span>
+            </footer>
+          </section>
+        </div>
+      )}
+    </>
   );
 }

@@ -110,8 +110,8 @@
 .enemy-hud {
   position: absolute;
   z-index: 10;
-  top: 78px;
-  left: calc((100% - min(700px, 49vw) - 16px) / 2);
+  top: 18px;
+  left: 50%;
   width: min(380px, 36vw);
   transform: translateX(-50%);
   text-align: center;
@@ -121,7 +121,7 @@
 .team-status {
   position: absolute;
   z-index: 12;
-  top: 190px;
+  top: 88px;
   left: 16px;
   display: flex;
   width: 220px;
@@ -167,21 +167,43 @@
 .move-menu {
   position: absolute;
   z-index: 20;
-  top: 78px;
+  top: 16px;
   right: 16px;
-  width: min(700px, 49vw);
-  max-height: calc(100dvh - 270px);
-  overflow: auto;
+  width: 304px;
   border: 1px solid #364154;
   background: #03070bdd;
   box-shadow: 0 20px 60px #000c;
-  padding: 8px;
-  scrollbar-color: #554366 #09080d;
+  padding: 7px;
   backdrop-filter: blur(18px);
-  clip-path: polygon(9px 0, calc(100% - 9px) 0, 100% 9px, 100% calc(100% - 9px), calc(100% - 9px) 100%, 9px 100%, 0 calc(100% - 9px), 0 9px);
+  clip-path: polygon(7px 0, calc(100% - 7px) 0, 100% 7px, 100% calc(100% - 7px), calc(100% - 7px) 100%, 7px 100%, 0 calc(100% - 7px), 0 7px);
 }
 
-.move-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.compact-menu-heading { display: flex; align-items: center; justify-content: space-between; padding: 1px 3px 6px; }
+.compact-menu-heading div { display: flex; flex-direction: column; }
+.compact-menu-heading small { color: #8c7a9e; font-size: .47rem; letter-spacing: .16em; text-transform: uppercase; }
+.compact-menu-heading strong { font-family: var(--font-display); font-size: .72rem; text-transform: uppercase; }
+.compact-menu-heading button { cursor: pointer; border: 1px solid #594670; border-radius: 999px; background: #171020; padding: 4px 8px; color: #d9cae8; font-size: .52rem; }
+.compact-moves { display: grid; gap: 4px; }
+.compact-spell { position: relative; display: grid; min-height: 38px; grid-template-columns: 26px minmax(80px, 1fr) auto 38px; align-items: center; gap: 5px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--move-color) 48%, #30343c); background: linear-gradient(90deg, color-mix(in srgb, var(--move-color) 9%, #07080c), #06070aee); padding: 4px 6px; }
+.compact-progress { position: absolute; inset: 0 auto 0 0; width: var(--move-progress); background: linear-gradient(90deg, color-mix(in srgb, var(--move-color) 28%, transparent), transparent); transition: width .1s linear; }
+.compact-spell > *:not(.compact-progress) { position: relative; }
+.compact-symbol { color: var(--move-color); font-size: 1.15rem; text-align: center; text-shadow: 0 0 8px var(--move-color); }
+.compact-copy { display: flex; min-width: 0; flex-direction: column; }
+.compact-copy strong { overflow: hidden; color: var(--move-color); font-family: var(--font-display); font-size: .56rem; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.compact-copy small { color: #9e97a5; font-size: .42rem; text-transform: uppercase; }
+.compact-recipe { display: flex; gap: 1px; }
+.compact-recipe .gesture-glyph { font-size: .8rem; filter: drop-shadow(0 0 4px var(--move-color)); }
+.compact-status { width: 38px; color: var(--move-color); font-size: .39rem; letter-spacing: .03em; text-align: right; text-transform: uppercase; }
+.compact-spell.is-disabled { border-color: #282932; filter: grayscale(1); opacity: .36; }
+.compact-spell.is-active { animation: spell-pulse .9s ease-in-out infinite; border-color: var(--move-color); }
+
+.spell-help-overlay { position: fixed; z-index: 70; inset: 0; display: grid; place-items: center; background: #03030bd9; padding: 16px; backdrop-filter: blur(14px); }
+.spell-help-panel { width: min(1400px, 100%); max-height: calc(100dvh - 32px); overflow: auto; border: 1px solid #4b385f; background: #03070bf5; box-shadow: 0 24px 80px #000; padding: 12px; scrollbar-color: #554366 #09080d; }
+.spell-help-heading { display: flex; align-items: center; justify-content: space-between; padding: 0 3px 10px; }
+.spell-help-heading small { color: #a78dbe; font-size: .55rem; letter-spacing: .18em; text-transform: uppercase; }
+.spell-help-heading h2 { margin: 2px 0 0; font-family: var(--font-display); font-size: 1.4rem; text-transform: uppercase; }
+.spell-help-heading button { cursor: pointer; border: 1px solid #6d506f; border-radius: 999px; background: #201221; padding: 7px 12px; color: #f0ddef; font-size: .65rem; }
+.help-spell-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .spell-card {
   --move-progress: 0%;
   position: relative;
@@ -271,9 +293,9 @@
 @media (max-width: 1100px) {
   .room-chip > span:last-child { display: none; }
   .combat-message { width: min(460px, calc(100% - 460px)); }
-  .move-menu { width: min(520px, 48vw); }
+  .move-menu { width: 280px; }
+  .help-spell-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .spell-orb { width: 58px; height: 58px; }
-  .spell-card > p { display: none; }
   .spell-legend { grid-template-columns: repeat(3, 1fr); }
   .hand-card { width: 200px; }
 }
@@ -286,9 +308,16 @@
   .enemy-hud { top: 58px; left: 50%; width: min(340px, 70vw); }
   .enemy-hud h2 { font-size: 1.2rem; }
   .team-status { top: 134px; left: 8px; width: 170px; }
-  .move-menu { top: 218px; right: 8px; width: calc(100% - 16px); max-height: calc(100dvh - 370px); }
-  .move-grid { grid-template-columns: 1fr; }
-  .spell-card > p { display: block; }
+  .move-menu { top: 134px; right: 8px; width: 200px; }
+  .compact-spell { min-height: 34px; grid-template-columns: 20px minmax(64px, 1fr) auto 32px; gap: 3px; padding: 3px 4px; }
+  .compact-symbol { font-size: .9rem; }
+  .compact-copy strong { font-size: .48rem; }
+  .compact-copy small { display: none; }
+  .compact-recipe .gesture-glyph { font-size: .65rem; }
+  .compact-status { width: 32px; font-size: .34rem; }
+  .spell-help-overlay { padding: 6px; }
+  .spell-help-panel { max-height: calc(100dvh - 12px); padding: 8px; }
+  .help-spell-grid { grid-template-columns: 1fr; }
   .spell-orb { width: 64px; height: 64px; }
   .player-cameras { right: 8px; bottom: 8px; left: 8px; gap: 8px; }
   .hand-card { width: calc(50vw - 12px); padding: 6px; }
