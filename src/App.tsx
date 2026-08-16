@@ -322,9 +322,11 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    const cleanups = preloadAudioAssets(AUDIO_ASSET_URLS, onAssetLoaded, onAssetError);
+    // Audio failures never gate or error the loading screens: sound is not
+    // required for the arena to be playable, unlike the 3D models below.
+    const cleanups = preloadAudioAssets(AUDIO_ASSET_URLS, onAssetLoaded, () => undefined);
     return () => cleanups.forEach((cleanup) => cleanup());
-  }, [onAssetLoaded, onAssetError]);
+  }, [onAssetLoaded]);
   const retryAssetLoading = useCallback(() => window.location.reload(), []);
 
   useEffect(() => setAssetError(""), [arenaState.round]);
