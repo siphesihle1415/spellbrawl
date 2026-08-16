@@ -7,8 +7,7 @@ type Gesture =
   | "FIST"
   | "OPEN_PALM"
   | "POINT"
-  | "PINCH"
-  | "HANDS_APART";
+  | "PINCH";
 ```
 
 All gestures are stable poses. A gesture is emitted only after approximately 100–150 ms of temporal stability, with confidence included for local feedback.

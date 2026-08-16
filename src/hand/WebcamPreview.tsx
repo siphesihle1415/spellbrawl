@@ -91,11 +91,12 @@ const requestCamera = async () => {
   }
 };
 
-export function WebcamPreview({ onGesture, active, playerLabel }: { onGesture: (gesture: Gesture, confidence: number) => void; active: boolean; playerLabel: string }) {
+export function WebcamPreview({ onGesture, onGestureEnd, active, playerLabel }: { onGesture: (gesture: Gesture, confidence: number) => void; onGestureEnd: () => void; active: boolean; playerLabel: string }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sourceRef = useRef<MediaPipeGestureSource | null>(null);
   const runIdRef = useRef(0);
+  const poseWasPresentRef = useRef(false);
   const [status, setStatus] = useState<TrackingStatus>("idle");
   const [pose, setPose] = useState<PoseResult | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
@@ -109,6 +110,8 @@ export function WebcamPreview({ onGesture, active, playerLabel }: { onGesture: (
     if (videoRef.current) videoRef.current.srcObject = null;
     setStatus("idle");
     setPose(null);
+    poseWasPresentRef.current = false;
+    onGestureEnd();
   };
 
   useEffect(() => {
@@ -147,6 +150,8 @@ export function WebcamPreview({ onGesture, active, playerLabel }: { onGesture: (
       const source = new MediaPipeGestureSource(videoRef.current, {
         onFrame: (hands, poseResult) => {
           setPose(poseResult);
+          if (!poseResult && poseWasPresentRef.current) onGestureEnd();
+          poseWasPresentRef.current = poseResult !== null;
           if (canvas) drawHands(canvas, hands, poseResult?.gesture.replaceAll("_", " ") ?? null);
         },
       });
@@ -184,7 +189,7 @@ export function WebcamPreview({ onGesture, active, playerLabel }: { onGesture: (
   return (
     <section className="hand-card" aria-label={`${playerLabel} hand tracking`}>
       <div className="hand-viewport">
-        <video ref={videoRef} muted playsInline aria-hidden="true" className="absolute inset-0 size-full -scale-x-100 object-cover opacity-60" />
+        <video ref={videoRef} muted playsInline aria-hidden="true" className="absolute inset-0 size-full -scale-x-100 object-cover opacity-0" />
         <canvas ref={canvasRef} width={640} height={480} className="pointer-events-none absolute inset-0 size-full" />
         {!active ? (
           <div className="tracking-paused">

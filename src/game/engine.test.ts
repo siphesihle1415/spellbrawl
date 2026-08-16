@@ -33,7 +33,7 @@ describe("gameReducer", () => {
   it("completes the Hexwyrm co-op sequence", () => {
     let state = started();
     let at = 100;
-    const gesture = (playerId: "PLAYER_A" | "PLAYER_B", value: "FIST" | "OPEN_PALM" | "POINT" | "PINCH" | "HANDS_APART") => {
+    const gesture = (playerId: "PLAYER_A" | "PLAYER_B", value: "FIST" | "OPEN_PALM" | "POINT" | "PINCH") => {
       state = gameReducer(state, { type: "GESTURE", playerId, gesture: value, at });
       at += 100;
     };
@@ -62,6 +62,14 @@ describe("gameReducer", () => {
     state = gameReducer(state, { type: "GESTURE", playerId: "PLAYER_A", gesture: "FIST", at: 2_100 });
     state = gameReducer(state, { type: "GESTURE", playerId: "PLAYER_A", gesture: "OPEN_PALM", at: 2_200 });
     expect(state.effect).toMatchObject({ kind: "FIREBOLT", playerId: "PLAYER_A" });
+  });
+
+  it("clears a player's displayed gesture without changing their combat windows", () => {
+    const gesturing = gameReducer(started(), { type: "GESTURE", playerId: "PLAYER_A", gesture: "FIST", at: 100 });
+    const cleared = gameReducer(gesturing, { type: "GESTURE_END", playerId: "PLAYER_A" });
+
+    expect(cleared.players.PLAYER_A.lastGesture).toBeUndefined();
+    expect(cleared.players.PLAYER_A.fistPrimedUntil).toBe(1_600);
   });
 
   it("adopts a synced state verbatim", () => {

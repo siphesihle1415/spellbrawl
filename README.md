@@ -19,7 +19,7 @@ Open port `8888`, not the Vite port, so calls to `/.netlify/functions/director` 
 
 The initial implementation includes the deterministic three-round combat loop, a React Three Fiber arena, camera-based MediaPipe gesture tracking without a visible webcam feed, keyboard/debug gesture controls, and a multiplayer integration boundary.
 
-Each player can use keys `1`–`5` for local testing. They map to `FIST`, `OPEN_PALM`, `POINT`, `PINCH`, and `HANDS_APART`; gestures are attributed to that browser's assigned player.
+Each player can use keys `1`–`4` for local testing. They map to `FIST`, `OPEN_PALM`, `POINT`, and `PINCH`; gestures are attributed to that browser's assigned player.
 
 ## Commands
 

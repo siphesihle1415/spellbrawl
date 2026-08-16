@@ -16,7 +16,6 @@ const PINKY_PIP = 18;
 const PINKY_TIP = 20;
 
 const PINCH_RATIO_THRESHOLD = 0.4;
-const HANDS_APART_RATIO_THRESHOLD = 3.5;
 
 function dist(a: Landmark, b: Landmark): number {
   const dx = a.x - b.x;
@@ -62,15 +61,6 @@ function classifySingleHand(hand: Landmark[]): PoseResult | null {
 
 export function classifyPose(hands: Landmark[][]): PoseResult | null {
   if (hands.length === 0) return null;
-
-  if (hands.length >= 2) {
-    const scale = (handScale(hands[0]) + handScale(hands[1])) / 2;
-    const ratio = dist(hands[0][WRIST], hands[1][WRIST]) / scale;
-    if (ratio >= HANDS_APART_RATIO_THRESHOLD) {
-      const confidence = Math.min(1, ratio / (HANDS_APART_RATIO_THRESHOLD * 1.5));
-      return { gesture: "HANDS_APART", confidence };
-    }
-  }
 
   return classifySingleHand(hands[0]);
 }

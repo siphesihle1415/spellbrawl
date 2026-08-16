@@ -17,7 +17,6 @@ const keyGestures: Record<string, Gesture> = {
   "2": "OPEN_PALM",
   "3": "POINT",
   "4": "PINCH",
-  "5": "HANDS_APART",
 };
 
 const previewRooms: { round: RoundId; label: string }[] = [
@@ -116,6 +115,10 @@ export function App() {
         }
         return;
       }
+      if (event.type === "GESTURE_END") {
+        if (roleRef.current?.isHost) dispatch({ type: "GESTURE_END", playerId: event.playerId });
+        return;
+      }
       if (event.type === "STATE_SYNC") {
         dispatch({ type: "SYNC", state: event.state });
         return;
@@ -174,8 +177,15 @@ export function App() {
       if (!gesture || event.repeat) return;
       castGesture(gesture, performance.now());
     };
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (keyGestures[event.key]) clearGesture();
+    };
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+    };
   }, []);
 
   const progress = state.enemyMaxHp === 0 ? 0 : (state.enemyHp / state.enemyMaxHp) * 100;
@@ -209,12 +219,19 @@ export function App() {
     }, connected ? 120 : 0);
   };
 
+  const clearGesture = () => {
+    const role = roleRef.current;
+    if (!role) return;
+    dispatch({ type: "GESTURE_END", playerId: role.myPlayerId });
+    if (!role.isHost) transport.publish({ type: "GESTURE_END", playerId: role.myPlayerId });
+  };
+
   return (
     <main className="relative h-dvh w-screen overflow-hidden bg-[#08060f]">
       <section className="absolute inset-0 overflow-hidden">
         {lightweightTestMode
           ? <div className="arena-lite-bg" aria-hidden="true" />
-          : <Arena state={arenaState} enemyColor={encounter.color} now={now} preview={isPreviewing} resetKey={previewResetKey} onAssetLoaded={onAssetLoaded} />}
+          : <Arena state={arenaState} playerId={myPlayerId} enemyColor={encounter.color} now={now} preview={isPreviewing} resetKey={previewResetKey} onAssetLoaded={onAssetLoaded} />}
 
         {!lightweightTestMode && <StartupLoader loadedAssets={loadedAssets.size} totalAssets={criticalAssetCount} />}
 
@@ -273,7 +290,7 @@ export function App() {
             <MoveMenu state={state} playerId={myPlayerId} now={now} />
 
             <div className="player-cameras">
-              <WebcamPreview playerLabel={myPlayerId === "PLAYER_A" ? "Player 1" : "Player 2"} active={trackingActive} onGesture={(gesture) => castGesture(gesture, performance.now())} />
+              <WebcamPreview playerLabel={myPlayerId === "PLAYER_A" ? "Player 1" : "Player 2"} active={trackingActive} onGesture={(gesture) => castGesture(gesture, performance.now())} onGestureEnd={clearGesture} />
               <RemoteHandPreview playerLabel={otherPlayerId === "PLAYER_A" ? "Player 1" : "Player 2"} active={trackingActive} gesture={state.players[otherPlayerId].lastGesture} />
             </div>
 

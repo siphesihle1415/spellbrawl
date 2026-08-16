@@ -124,6 +124,15 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
   if (action.type === "RESET") return initialGameState();
   if (action.type === "START") return { ...initialGameState(), status: "PLAYING", message: "Embermaw attacks! Cast FIST → OPEN PALM." };
   if (action.type === "SYNC") return action.state;
+  if (action.type === "GESTURE_END") {
+    return {
+      ...state,
+      players: {
+        ...state.players,
+        [action.playerId]: { ...state.players[action.playerId], lastGesture: undefined },
+      },
+    };
+  }
   if (state.status !== "PLAYING") return state;
 
   if (action.type === "ENEMY_ATTACK") {

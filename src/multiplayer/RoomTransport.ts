@@ -6,6 +6,7 @@ export type SemanticRoomEvent =
   | { type: "ROLE_ASSIGNED"; playerId: PlayerId; isHost: boolean }
   | { type: "PLAYER_READY"; playerId: PlayerId }
   | { type: "GESTURE"; playerId: PlayerId; gesture: Gesture; at: number }
+  | { type: "GESTURE_END"; playerId: PlayerId }
   | { type: "STATE_SYNC"; state: GameState }
   | { type: "DIRECTOR_SYNC"; configuration: RunConfiguration; source: DirectorSource }
   | { type: "SESSION_END"; playerId: PlayerId }

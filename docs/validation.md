@@ -6,7 +6,7 @@
 - [ ] Player can create a room and receive a short room code.
 - [ ] Second player can join and both identities are visible.
 - [ ] Webcam permission denial produces a clear fallback message.
-- [ ] `FIST`, `OPEN_PALM`, `POINT`, `PINCH`, and `HANDS_APART` show stable local feedback.
+- [ ] `FIST`, `OPEN_PALM`, `POINT`, and `PINCH` show stable local feedback.
 - [ ] A confirmed `FIST → OPEN_PALM` casts Firebolt exactly once.
 - [ ] `OPEN_PALM` blocks the enemy attack while active.
 - [ ] Player HP, enemy HP, damage, defeat, victory, and reset converge on both clients.

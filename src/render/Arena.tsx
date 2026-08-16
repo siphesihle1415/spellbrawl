@@ -3,7 +3,8 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Suspense, useEffect, useRef } from "react";
 import { AdditiveBlending, MathUtils, Mesh, Vector3, type Group, type Object3D, type PointLight } from "three";
 import { activeMonsterModelUrl, MONSTER_TRANSFORM } from "../game/monsters";
-import type { CombatEffect, GameState } from "../game/types";
+import type { CombatEffect, GameState, PlayerId } from "../game/types";
+import { playerCameraX } from "./playerCamera";
 
 const SCENE_MESH_URL = "/models/spellbrawl-three-rooms-open-lighting.glb";
 const SCENE_SCALE = 10.5;
@@ -50,7 +51,7 @@ function SceneMesh() {
   );
 }
 
-function RoomCamera({ round, preview, resetKey, effect }: { round: GameState["round"]; preview: boolean; resetKey: number; effect?: CombatEffect }) {
+function RoomCamera({ round, playerId, preview, resetKey, effect }: { round: GameState["round"]; playerId: PlayerId; preview: boolean; resetKey: number; effect?: CombatEffect }) {
   const { camera } = useThree();
   const light = useRef<PointLight>(null);
   const keys = useRef(new Set<string>());
@@ -64,11 +65,11 @@ function RoomCamera({ round, preview, resetKey, effect }: { round: GameState["ro
   }, [effect?.id, effect?.kind]);
 
   useEffect(() => {
-    camera.position.x = ROOM_CAMERA_X[round];
+    camera.position.x = playerCameraX(ROOM_CAMERA_X[round], playerId, preview);
     camera.position.y = ROOM_CAMERA_Y[round];
     camera.position.z = CAMERA_SPAWN_Z;
     camera.lookAt(ROOM_CAMERA_X[round], 0.9, MONSTER_Z);
-  }, [camera, resetKey, round]);
+  }, [camera, playerId, preview, resetKey, round]);
 
   useEffect(() => {
     if (!preview) return;
@@ -85,6 +86,7 @@ function RoomCamera({ round, preview, resetKey, effect }: { round: GameState["ro
 
   useFrame(({ clock }, delta) => {
     const roomX = ROOM_CAMERA_X[round];
+    const playerX = playerCameraX(roomX, playerId, false);
     const roomY = ROOM_CAMERA_Y[round];
     if (preview) {
       camera.getWorldDirection(direction.current);
@@ -105,11 +107,11 @@ function RoomCamera({ round, preview, resetKey, effect }: { round: GameState["ro
       const magnitude = effect?.kind === "ENEMY_EMERGE" ? 0.026 : 0.014;
       const shakeX = shaking ? Math.sin(clock.elapsedTime * 71) * magnitude : 0;
       const shakeY = shaking ? Math.cos(clock.elapsedTime * 83) * magnitude * 0.7 : 0;
-      camera.position.x = MathUtils.damp(camera.position.x, roomX + idleSway + shakeX, 8, delta);
+      camera.position.x = MathUtils.damp(camera.position.x, playerX + idleSway + shakeX, 8, delta);
       camera.position.y = MathUtils.damp(camera.position.y, roomY, 3.5, delta);
       if (shaking) camera.position.y += shakeY;
       camera.position.z = MathUtils.damp(camera.position.z, CAMERA_SPAWN_Z, 3.5, delta);
-      camera.lookAt(camera.position.x, 0.9, MONSTER_Z);
+      camera.lookAt(roomX, 0.9, MONSTER_Z);
     }
 
     if (light.current) {
@@ -121,7 +123,7 @@ function RoomCamera({ round, preview, resetKey, effect }: { round: GameState["ro
   return (
     <pointLight
       ref={light}
-      position={[ROOM_CAMERA_X[round] + 1.2, 1.8, CAMERA_SPAWN_Z + 0.5]}
+      position={[playerCameraX(ROOM_CAMERA_X[round], playerId, preview) + 1.2, 1.8, CAMERA_SPAWN_Z + 0.5]}
       intensity={18}
       color="#7755ff"
       distance={14}
@@ -132,7 +134,7 @@ function RoomCamera({ round, preview, resetKey, effect }: { round: GameState["ro
 function PlayerPositions({ roomX, shielded }: { roomX: number; shielded: boolean }) {
   return (
     <group>
-      {([-0.52, 0.52] as const).map((offset, index) => (
+      {([-0.72, 0.72] as const).map((offset, index) => (
         <group key={offset} position={[roomX + offset, 0.28, -0.62]}>
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
             <ringGeometry args={[0.12, 0.16, 32]} />
@@ -258,17 +260,18 @@ useGLTF.preload(activeMonsterModelUrl("EMBERMAW"));
 useGLTF.preload(activeMonsterModelUrl("SHARD_WARDEN"));
 useGLTF.preload(activeMonsterModelUrl("HEXWYRM"));
 
-export function Arena({ state, enemyColor, now = 0, preview = false, resetKey = 0, onAssetLoaded }: { state: GameState; enemyColor: string; now?: number; preview?: boolean; resetKey?: number; onAssetLoaded?: (assetUrl: string) => void }) {
+export function Arena({ state, playerId, enemyColor, now = 0, preview = false, resetKey = 0, onAssetLoaded }: { state: GameState; playerId: PlayerId; enemyColor: string; now?: number; preview?: boolean; resetKey?: number; onAssetLoaded?: (assetUrl: string) => void }) {
   const roomX = ROOM_CAMERA_X[state.round];
+  const cameraX = playerCameraX(roomX, playerId, preview);
   const shielded = state.status === "PLAYING" && Object.values(state.players).some((player) => player.shieldedUntil >= now);
 
   return (
-    <div className="absolute inset-0 h-full w-full">
+    <div className="absolute inset-0 h-full w-full" data-player-side={playerId === "PLAYER_A" ? "left" : "right"} data-camera-x={cameraX}>
       <Canvas
         className="h-full w-full"
         dpr={[1, 1.5]}
         shadows
-        camera={{ position: [roomX, ROOM_CAMERA_Y[state.round], CAMERA_SPAWN_Z], fov: 68 }}
+        camera={{ position: [cameraX, ROOM_CAMERA_Y[state.round], CAMERA_SPAWN_Z], fov: 68 }}
       >
         <color attach="background" args={["#08060f"]} />
         <fog attach="fog" args={["#08060f", 10, 24]} />
@@ -292,7 +295,7 @@ export function Arena({ state, enemyColor, now = 0, preview = false, resetKey = 
           <PlayerPositions roomX={roomX} shielded={shielded} />
           {state.effect && <SpellEffect key={state.effect.id} roomX={roomX} effect={state.effect} />}
         </Suspense>
-        <RoomCamera round={state.round} preview={preview} resetKey={resetKey} effect={state.effect} />
+        <RoomCamera round={state.round} playerId={playerId} preview={preview} resetKey={resetKey} effect={state.effect} />
         {preview && <PointerLockControls selector="#explore-scene" />}
       </Canvas>
     </div>

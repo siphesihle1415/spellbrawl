@@ -5,7 +5,6 @@ const glyphs: Record<Gesture, string> = {
   OPEN_PALM: "✋",
   POINT: "☝",
   PINCH: "🤏",
-  HANDS_APART: "👐",
 };
 
 export function GestureGlyph({ gesture, className = "" }: { gesture?: Gesture; className?: string }) {

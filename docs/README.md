@@ -30,6 +30,6 @@ npm install
 npm run dev
 ```
 
-Click **Start**, then enable the camera to cast with hand tracking. Keyboard shortcuts `1`–`5` remain available for local testing and map to `FIST`, `OPEN_PALM`, `POINT`, `PINCH`, and `HANDS_APART` in that order.
+Click **Start**, then enable the camera to cast with hand tracking. Keyboard shortcuts `1`–`4` remain available for local testing and map to `FIST`, `OPEN_PALM`, `POINT`, and `PINCH` in that order.
 
 Implemented now: deterministic three-round combat, shared HP, enemy attacks, co-op recipes, a basic R3F arena, MediaPipe hand landmarks, normalized gesture geometry, temporal confirmation, keyboard fallback controls, tests, and a multiplayer adapter contract. Cross-device room transport is the next integration step.

@@ -262,4 +262,19 @@ describe("RoomLogic", () => {
 
     expect(messagesOf(host)).toContainEqual({ type: "SESSION_END", playerId: "PLAYER_B" });
   });
+
+  it("relays gesture-end events with the sender's assigned identity", () => {
+    const room = new FakeRoom();
+    const logic = new RoomLogic(room as never);
+    const host = new FakeConnection("host-1");
+    const guest = new FakeConnection("guest-1");
+    room.add(host);
+    logic.onConnect(host as never);
+    room.add(guest);
+    logic.onConnect(guest as never);
+
+    logic.onMessage(JSON.stringify({ type: "GESTURE_END", playerId: "PLAYER_A" }), guest as never);
+
+    expect(messagesOf(host)).toContainEqual({ type: "GESTURE_END", playerId: "PLAYER_B" });
+  });
 });

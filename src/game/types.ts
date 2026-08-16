@@ -4,8 +4,7 @@ export type Gesture =
   | "FIST"
   | "OPEN_PALM"
   | "POINT"
-  | "PINCH"
-  | "HANDS_APART";
+  | "PINCH";
 
 export type RoundId = "EMBERMAW" | "SHARD_WARDEN" | "HEXWYRM";
 
@@ -66,4 +65,5 @@ export type GameAction =
   | { type: "RESET" }
   | { type: "SYNC"; state: GameState }
   | { type: "GESTURE"; playerId: PlayerId; gesture: Gesture; at: number }
+  | { type: "GESTURE_END"; playerId: PlayerId }
   | { type: "ENEMY_ATTACK"; at: number };
