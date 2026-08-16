@@ -13,7 +13,8 @@
     "deploy:worker": "wrangler deploy",
     "test": "vitest run",
     "assets:compress-monsters": "node scripts/compress-monsters.mjs",
-    "assets:compress-embermaw-animations": "node scripts/compress-embermaw-animations.mjs"
+    "assets:compress-embermaw-animations": "node scripts/compress-embermaw-animations.mjs",
+    "assets:compress-shardbound-colossus-animations": "node scripts/compress-shardbound-colossus-animations.mjs"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.1",
