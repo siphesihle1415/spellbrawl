@@ -11,6 +11,7 @@ import { Arena, criticalAssetCount } from "./render/Arena";
 import { MoveMenu } from "./ui/MoveMenu";
 import { RemoteHandPreview } from "./ui/RemoteHandPreview";
 import { RoomGate } from "./ui/RoomGate";
+import { SpellPlayground } from "./ui/SpellPlayground";
 import { StartupLoader } from "./ui/StartupLoader";
 
 const keyGestures: Record<string, Gesture> = {
@@ -34,6 +35,8 @@ export function App() {
   const [connection, setConnection] = useState<ConnectionState>({ status: "IDLE" });
   const [connectError, setConnectError] = useState("");
   const [isPreviewing, setIsPreviewing] = useState(false);
+  const [isSpellPlayground, setIsSpellPlayground] = useState(false);
+  const [playgroundState, dispatchPlayground] = useReducer(gameReducer, undefined, () => gameReducer(initialGameState(), { type: "START" }));
   const [previewRound, setPreviewRound] = useState<RoundId>("EMBERMAW");
   const [previewResetKey, setPreviewResetKey] = useState(0);
   const [loadedAssets, setLoadedAssets] = useState<Set<string>>(() => new Set());
@@ -41,6 +44,7 @@ export function App() {
   const [cameraReadyByPlayer, setCameraReadyByPlayer] = useState<Record<PlayerId, boolean>>({ PLAYER_A: false, PLAYER_B: false });
   const cameraReadyRef = useRef<Record<PlayerId, boolean>>({ PLAYER_A: false, PLAYER_B: false });
   const roleRef = useRef<{ myPlayerId: PlayerId; isHost: boolean } | null>(null);
+  const spellPlaygroundRef = useRef(false);
   const hasHostRole = (connection.status === "WAITING_FOR_PEER" || connection.status === "CONNECTED") && connection.isHost;
   const { configuration, status: directorStatus, applyRemoteConfiguration } = useRunConfiguration(hasHostRole);
 
@@ -189,7 +193,7 @@ export function App() {
   }, [state.status, state.round, connection]);
 
   useEffect(() => {
-    if (state.status !== "PLAYING") {
+    if (state.status !== "PLAYING" && !isSpellPlayground) {
       setNow(0);
       return;
     }
@@ -197,16 +201,27 @@ export function App() {
     update();
     const interval = window.setInterval(update, 100);
     return () => window.clearInterval(interval);
-  }, [state.status]);
+  }, [state.status, isSpellPlayground]);
+
+  spellPlaygroundRef.current = isSpellPlayground;
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const gesture = keyGestures[event.key];
       if (!gesture || event.repeat) return;
-      castGesture(gesture, performance.now());
+      if (spellPlaygroundRef.current) {
+        dispatchPlayground({ type: "GESTURE", playerId: "PLAYER_A", gesture, at: performance.now() });
+      } else {
+        castGesture(gesture, performance.now());
+      }
     };
     const onKeyUp = (event: KeyboardEvent) => {
-      if (keyGestures[event.key]) clearGesture();
+      if (!keyGestures[event.key]) return;
+      if (spellPlaygroundRef.current) {
+        dispatchPlayground({ type: "GESTURE_END", playerId: "PLAYER_A" });
+      } else {
+        clearGesture();
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
@@ -227,7 +242,8 @@ export function App() {
       : directorStatus === "loading"
         ? "Directing…"
         : "Classic run";
-  const arenaState = isPreviewing ? { ...state, round: previewRound } : state;
+  const arenaState = isSpellPlayground ? playgroundState : isPreviewing ? { ...state, round: previewRound } : state;
+  const arenaEncounter = encounterForRound(configuration, arenaState.round);
   const myPlayerId = hasRoom ? connection.myPlayerId : "PLAYER_A";
   const otherPlayerId: PlayerId = myPlayerId === "PLAYER_A" ? "PLAYER_B" : "PLAYER_A";
   const trackingActive = connected && (state.status === "LOBBY" || state.status === "PLAYING");
@@ -250,6 +266,17 @@ export function App() {
     }, connected ? 120 : 0);
   };
 
+  const openSpellPlayground = () => {
+    dispatchPlayground({ type: "RESET" });
+    dispatchPlayground({ type: "START" });
+    setIsSpellPlayground(true);
+  };
+
+  const closeSpellPlayground = () => {
+    setIsSpellPlayground(false);
+    dispatchPlayground({ type: "RESET" });
+  };
+
   const clearGesture = () => {
     const role = roleRef.current;
     if (!role) return;
@@ -262,7 +289,7 @@ export function App() {
       <section className="absolute inset-0 overflow-hidden">
         {lightweightTestMode
           ? <div className="arena-lite-bg" aria-hidden="true" />
-          : <Arena state={arenaState} playerId={myPlayerId} enemyColor={encounter.color} now={now} preview={isPreviewing} resetKey={previewResetKey} onAssetLoaded={onAssetLoaded} />}
+          : <Arena state={arenaState} playerId={myPlayerId} enemyColor={arenaEncounter.color} now={now} preview={isPreviewing} resetKey={previewResetKey} onAssetLoaded={onAssetLoaded} />}
 
         {!lightweightTestMode && <StartupLoader loadedAssets={loadedAssets.size} totalAssets={criticalAssetCount} />}
 
@@ -293,8 +320,10 @@ export function App() {
             <button id="explore-scene" type="button" className="rounded-full border border-[#70efb0] bg-[#173225] px-3 py-2 text-[#baf7d5]">Explore · WASD + mouse</button>
             <button type="button" className="rounded-full border border-[#57466f] bg-[#171020] px-3 py-2 text-[#e7ddf7]" onClick={() => setIsPreviewing(false)}>Exit preview</button>
           </div>
+        ) : isSpellPlayground ? (
+          <SpellPlayground state={playgroundState} now={now} dispatch={dispatchPlayground} onExit={closeSpellPlayground} testMode={import.meta.env.DEV && lightweightTestMode} />
         ) : !connected ? (
-          <RoomGate connection={connection} errorMessage={connectError} onCreate={connectTransport} onJoin={connectTransport} onPreview={() => setIsPreviewing(true)} />
+          <RoomGate connection={connection} errorMessage={connectError} onCreate={connectTransport} onJoin={connectTransport} onPreview={() => setIsPreviewing(true)} onTestSpells={openSpellPlayground} />
         ) : (
           <>
             <div className="enemy-hud">
@@ -324,8 +353,9 @@ export function App() {
               <WebcamPreview
                 playerLabel={myPlayerId === "PLAYER_A" ? "Player 1" : "Player 2"}
                 active={trackingActive}
+                castingEnabled={state.status === "PLAYING"}
                 testMode={import.meta.env.DEV && lightweightTestMode}
-                onGesture={(gesture) => { if (state.status === "PLAYING") castGesture(gesture, performance.now()); }}
+                onGesture={(gesture) => castGesture(gesture, performance.now())}
                 onGestureEnd={clearGesture}
                 onReadyChange={reportLocalCameraReady}
               />

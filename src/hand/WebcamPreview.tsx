@@ -7,6 +7,7 @@ import { GestureGlyph, gestureLabel } from "../ui/GestureGlyph";
 type TrackingStatus = "idle" | "starting" | "tracking" | "blocked" | "error";
 
 const CAMERA_REQUEST_TIMEOUT_MS = 8_000;
+const POSE_STALE_MS = 500;
 
 const HAND_CONNECTIONS: Array<[number, number]> = [
   [0, 1], [1, 2], [2, 3], [3, 4],
@@ -91,21 +92,45 @@ const requestCamera = async () => {
   }
 };
 
-export function WebcamPreview({ onGesture, onGestureEnd, onReadyChange, active, playerLabel, testMode = false }: { onGesture: (gesture: Gesture, confidence: number) => void; onGestureEnd: () => void; onReadyChange: (ready: boolean) => void; active: boolean; playerLabel: string; testMode?: boolean }) {
+export function WebcamPreview({ onGesture, onGestureEnd, onReadyChange, active, castingEnabled, playerLabel, testMode = false }: { onGesture: (gesture: Gesture, confidence: number) => void; onGestureEnd: () => void; onReadyChange: (ready: boolean) => void; active: boolean; castingEnabled: boolean; playerLabel: string; testMode?: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sourceRef = useRef<MediaPipeGestureSource | null>(null);
   const runIdRef = useRef(0);
   const poseWasPresentRef = useRef(false);
   const readyRef = useRef(false);
+  const poseExpiryRef = useRef(0);
+  const onGestureRef = useRef(onGesture);
+  const onGestureEndRef = useRef(onGestureEnd);
+  const onReadyChangeRef = useRef(onReadyChange);
+  const castingEnabledRef = useRef(castingEnabled);
+  const needsNeutralRef = useRef(false);
   const [status, setStatus] = useState<TrackingStatus>("idle");
   const [pose, setPose] = useState<PoseResult | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
 
+  onGestureRef.current = onGesture;
+  onGestureEndRef.current = onGestureEnd;
+  onReadyChangeRef.current = onReadyChange;
+
+  const clearPoseExpiry = () => {
+    window.clearTimeout(poseExpiryRef.current);
+    poseExpiryRef.current = 0;
+  };
+
+  const clearDisplayedPose = () => {
+    clearPoseExpiry();
+    setPose(null);
+    if (poseWasPresentRef.current) onGestureEndRef.current();
+    poseWasPresentRef.current = false;
+    const canvas = canvasRef.current;
+    if (canvas) drawHands(canvas, [], null);
+  };
+
   const reportReady = (ready: boolean) => {
     if (readyRef.current === ready) return;
     readyRef.current = ready;
-    onReadyChange(ready);
+    onReadyChangeRef.current(ready);
   };
 
   const stopTracking = () => {
@@ -116,15 +141,26 @@ export function WebcamPreview({ onGesture, onGestureEnd, onReadyChange, active, 
     if (stream instanceof MediaStream) stream.getTracks().forEach((track) => track.stop());
     if (videoRef.current) videoRef.current.srcObject = null;
     setStatus("idle");
-    setPose(null);
-    poseWasPresentRef.current = false;
+    clearDisplayedPose();
     reportReady(false);
-    onGestureEnd();
   };
+
+  useEffect(() => {
+    if (castingEnabled && !castingEnabledRef.current) {
+      // Tracking starts in the lobby. Require the player to release that setup pose
+      // before combat so an already-raised palm cannot cast Shield on Start.
+      needsNeutralRef.current = true;
+      clearDisplayedPose();
+    } else if (!castingEnabled) {
+      needsNeutralRef.current = true;
+    }
+    castingEnabledRef.current = castingEnabled;
+  }, [castingEnabled]);
 
   useEffect(() => {
     return () => {
       runIdRef.current += 1;
+      clearPoseExpiry();
       sourceRef.current?.stop();
       const stream = videoRef.current?.srcObject;
       if (stream instanceof MediaStream) stream.getTracks().forEach((track) => track.stop());
@@ -163,13 +199,23 @@ export function WebcamPreview({ onGesture, onGestureEnd, onReadyChange, active, 
       const source = new MediaPipeGestureSource(videoRef.current, {
         onFrame: (hands, poseResult) => {
           setPose(poseResult);
-          if (!poseResult && poseWasPresentRef.current) onGestureEnd();
+          clearPoseExpiry();
+          if (!poseResult) {
+            if (poseWasPresentRef.current) onGestureEndRef.current();
+            if (castingEnabledRef.current) needsNeutralRef.current = false;
+          } else {
+            poseExpiryRef.current = window.setTimeout(clearDisplayedPose, POSE_STALE_MS);
+          }
           poseWasPresentRef.current = poseResult !== null;
           if (canvas) drawHands(canvas, hands, poseResult?.gesture.replaceAll("_", " ") ?? null);
         },
       });
       sourceRef.current = source;
-      await source.start((confirmed) => onGesture(confirmed.gesture, confirmed.confidence));
+      await source.start((confirmed) => {
+        if (castingEnabledRef.current && !needsNeutralRef.current) {
+          onGestureRef.current(confirmed.gesture, confirmed.confidence);
+        }
+      });
       if (runId !== runIdRef.current) {
         source.stop();
         return;

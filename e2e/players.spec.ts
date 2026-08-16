@@ -26,6 +26,7 @@ test("two players see the combat HUD, synced gestures, and shared session exit",
   await expect(host.getByText("Shared HP", { exact: true })).toBeVisible();
   await expect(guest.getByText("Shared HP", { exact: true })).toBeVisible();
   await expect(host.getByLabel("Spell moves")).toBeVisible();
+  await expect(host.locator(".compact-spell").filter({ hasText: "Arcane Shield" })).not.toHaveClass(/is-active/);
   const moveMenuBox = await host.getByLabel("Spell moves").boundingBox();
   expect(moveMenuBox?.width).toBeLessThanOrEqual(320);
   expect((moveMenuBox?.x ?? 0) + (moveMenuBox?.width ?? 0)).toBeGreaterThan(1400);
@@ -58,4 +59,28 @@ test("two players see the combat HUD, synced gestures, and shared session exit",
 
   await hostContext.close();
   await guestContext.close();
+});
+
+test("spell playground uses one hand tracker and drives the real spell state", async ({ page }) => {
+  await page.goto("/?lite=1");
+  await page.getByRole("button", { name: "Test Spells" }).click();
+
+  await expect(page.getByRole("heading", { name: "Spell Playground" })).toBeVisible();
+  await expect(page.locator(".hand-card")).toHaveCount(1);
+  await page.getByLabel("Player 1 hand tracking").getByRole("button", { name: "Grant camera access" }).click();
+
+  const shieldMove = page.locator(".compact-spell").filter({ hasText: "Arcane Shield" });
+  await expect(shieldMove).not.toHaveClass(/is-active/);
+  await page.keyboard.press("2");
+  await expect(shieldMove).toHaveClass(/is-active/);
+  await expect(shieldMove).not.toHaveClass(/is-active/, { timeout: 3_000 });
+
+  await page.keyboard.press("1");
+  await page.keyboard.press("2");
+  await expect(page.getByText("Firebolt strikes true!", { exact: true })).toBeVisible();
+  await expect(page.getByText("Enemy 2 / 3 HP", { exact: false })).toBeVisible();
+  await page.screenshot({ path: "test-results/spell-playground.png", fullPage: true });
+
+  await page.getByRole("button", { name: "Exit playground" }).click();
+  await expect(page.getByRole("heading", { name: "Enter the arena" })).toBeVisible();
 });

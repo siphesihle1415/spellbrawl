@@ -272,7 +272,7 @@ useGLTF.preload(activeMonsterModelUrl("HEXWYRM"));
 export function Arena({ state, playerId, enemyColor, now = 0, preview = false, resetKey = 0, onAssetLoaded }: { state: GameState; playerId: PlayerId; enemyColor: string; now?: number; preview?: boolean; resetKey?: number; onAssetLoaded?: (assetUrl: string) => void }) {
   const roomX = ROOM_CAMERA_X[state.round];
   const cameraX = playerCameraX(roomX, playerId, preview);
-  const shielded = state.status === "PLAYING" && Object.values(state.players).some((player) => player.shieldedUntil >= now);
+  const shielded = state.status === "PLAYING" && Object.values(state.players).some((player) => player.shieldedUntil > now);
 
   return (
     <div className="absolute inset-0 h-full w-full" data-player-side={playerId === "PLAYER_A" ? "left" : "right"} data-camera-x={cameraX}>

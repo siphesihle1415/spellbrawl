@@ -260,6 +260,30 @@
 }
 .player-cameras.is-lobby { z-index: 20; }
 
+.spell-playground-ui { position: absolute; z-index: 18; inset: 0; pointer-events: none; }
+.playground-heading {
+  position: absolute;
+  top: 78px;
+  left: 16px;
+  display: flex;
+  max-width: min(430px, calc(100vw - 360px));
+  align-items: start;
+  gap: 14px;
+  border: 1px solid #3c6550;
+  border-radius: 13px;
+  background: #09150fdf;
+  padding: 12px 14px;
+  box-shadow: 0 16px 40px #0008;
+  pointer-events: auto;
+  backdrop-filter: blur(14px);
+}
+.playground-heading > div { flex: 1; }
+.playground-heading small { color: #70efb0; font-size: .55rem; letter-spacing: .11em; text-transform: uppercase; }
+.playground-heading h2 { margin: 3px 0; font-family: var(--font-display); font-size: 1.15rem; }
+.playground-heading p { margin: 0; color: #b8c9be; font-size: .62rem; }
+.playground-heading button { cursor: pointer; border: 1px solid #5d7968; border-radius: 999px; background: #13231a; padding: 7px 10px; color: #c7f5d9; font-size: .58rem; white-space: nowrap; }
+.playground-camera { position: absolute; bottom: 16px; left: 16px; pointer-events: auto; }
+
 .hand-card {
   width: min(225px, 18vw);
   border: 1px solid #3a2c4e;
@@ -323,5 +347,10 @@
   .player-cameras { right: 8px; bottom: 8px; left: 8px; gap: 8px; }
   .hand-card { width: calc(50vw - 12px); padding: 6px; }
   .hand-card > p { display: none; }
+  .playground-heading { top: 58px; right: 8px; left: 8px; max-width: none; padding: 9px; }
+  .playground-heading h2 { font-size: .9rem; }
+  .playground-heading p { font-size: .54rem; }
+  .playground-camera { bottom: 8px; left: 8px; }
+  .playground-camera .hand-card { width: min(210px, calc(100vw - 16px)); }
   .combat-message { bottom: 122px; width: calc(100% - 16px); padding: 8px; font-size: .64rem; }
 }
