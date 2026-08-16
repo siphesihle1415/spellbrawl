@@ -26,7 +26,7 @@ export function RoundLoader({ label, loadedAssets, totalAssets, errorMessage, on
   const visibleError = showError ? errorMessage : "";
 
   return (
-    <div className="absolute inset-0 z-30 grid place-items-center bg-[#08060fcc] text-center backdrop-blur-sm">
+    <div className="absolute inset-0 z-30 grid place-items-center bg-[#08060f] text-center">
       <div>
         <div className="mx-auto flex w-24 justify-between" aria-hidden="true">
           <span className="size-3 animate-pulse rounded-full bg-[#ff7658] shadow-[0_0_18px_#ff7658]" />
