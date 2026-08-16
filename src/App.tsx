@@ -4,6 +4,7 @@ import { useRunConfiguration } from "./director/useRunConfiguration";
 import { gameReducer, initialGameState } from "./game/engine";
 import { rebaseSyncedState } from "./game/syncClock";
 import { ATTACK_IMPACT_DELAY_MS, ROUND_ANIMATION_URLS } from "./game/monsters";
+import { useRoundDisplay } from "./game/roundReveal";
 import type { Gesture, PlayerId, RoundId } from "./game/types";
 import { WebcamPreview } from "./hand/WebcamPreview";
 import { CloudflareRoomTransport } from "./multiplayer/CloudflareRoomTransport";
@@ -33,6 +34,7 @@ const lightweightTestMode = new URLSearchParams(window.location.search).has("lit
 
 export function App() {
   const [state, dispatch] = useReducer(gameReducer, undefined, initialGameState);
+  const display = useRoundDisplay(state);
   const [transport] = useState(() => new CloudflareRoomTransport());
   const [connection, setConnection] = useState<ConnectionState>({ status: "IDLE" });
   const [connectError, setConnectError] = useState("");
@@ -62,6 +64,7 @@ export function App() {
   const { configuration, status: directorStatus, applyRemoteConfiguration } = useRunConfiguration(hasHostRole);
 
   const encounter = encounterForRound(configuration, state.round);
+  const displayEncounter = encounterForRound(configuration, display.round);
   const enemyAssetsReady = lightweightTestMode || (debugDelayElapsed && ROUND_ANIMATION_URLS[state.round].every((url) => loadedRoundAssets.has(url)));
   // Attacks are host-authoritative, so it's not enough for the host's own assets to be ready:
   // a guest with a slower connection could still be staring at their own RoundLoader — which
@@ -280,10 +283,10 @@ export function App() {
     };
   }, []);
 
-  const progress = state.enemyMaxHp === 0 ? 0 : (state.enemyHp / state.enemyMaxHp) * 100;
+  const progress = display.enemyMaxHp === 0 ? 0 : (display.enemyHp / display.enemyMaxHp) * 100;
   const connected = connection.status === "CONNECTED";
   const hasRoom = connection.status === "CONNECTED" || connection.status === "WAITING_FOR_PEER";
-  const message = directMessage(configuration, state.message);
+  const message = directMessage(configuration, display.message);
   const directorLabel = directorStatus === "ai"
     ? "AI Director"
     : directorStatus === "static"
@@ -295,7 +298,7 @@ export function App() {
   const arenaEncounter = encounterForRound(configuration, arenaState.round);
   const myPlayerId = hasRoom ? connection.myPlayerId : "PLAYER_A";
   const otherPlayerId: PlayerId = myPlayerId === "PLAYER_A" ? "PLAYER_B" : "PLAYER_A";
-  const trackingActive = connected && (state.status === "LOBBY" || state.status === "PLAYING");
+  const trackingActive = connected && (display.status === "LOBBY" || display.status === "PLAYING");
   const bothCamerasReady = cameraReadyByPlayer.PLAYER_A && cameraReadyByPlayer.PLAYER_B;
   const readyCameraCount = Number(cameraReadyByPlayer.PLAYER_A) + Number(cameraReadyByPlayer.PLAYER_B);
   const onAssetLoaded = useCallback((assetUrl: string) => {
@@ -379,12 +382,12 @@ export function App() {
         ) : (
           <>
             <div className="enemy-hud">
-              <small className="tracking-[0.15em] text-[#b8a8d2] uppercase">{encounter.title}</small>
-              <h2 className="font-display my-1 text-[clamp(1.4rem,3vw,2.2rem)]">{encounter.name}</h2>
+              <small className="tracking-[0.15em] text-[#b8a8d2] uppercase">{displayEncounter.title}</small>
+              <h2 className="font-display my-1 text-[clamp(1.4rem,3vw,2.2rem)]">{displayEncounter.name}</h2>
               <div className="h-[7px] rounded-[9px] border border-[#6c567e] bg-[#110d19] p-px">
                 <span className="block h-full rounded-[7px] bg-linear-to-r from-[#ff554a] to-[#ffb14a] transition-[width] duration-300" style={{ width: `${progress}%` }} />
               </div>
-              <p className="m-[5px] text-[0.7rem] text-[#ac9dbf] uppercase">{state.enemyHp} / {state.enemyMaxHp} HP · {state.phase.replaceAll("_", " ")}</p>
+              <p className="m-[5px] text-[0.7rem] text-[#ac9dbf] uppercase">{display.enemyHp} / {display.enemyMaxHp} HP · {display.phase.replaceAll("_", " ")}</p>
               {state.phase === "FUSION_FINISHER" && (
                 <p className="mx-auto mt-2 max-w-[36rem] rounded-lg border border-[#4d3b65] bg-[#0c0915dd] px-3 py-2 text-xs text-[#e5d5fa]">
                   <strong className="text-[#ffcb76]">{configuration.finisher.name}:</strong> {configuration.finisher.clue}
@@ -393,7 +396,7 @@ export function App() {
             </div>
 
             <div className="team-status">
-              <div>Round {state.roundNumber} / 3</div>
+              <div>Round {display.roundNumber} / 3</div>
               <div className="shared-hp"><span><b>Shared HP</b><em>{state.sharedHp} / 5</em></span><div><i style={{ width: `${state.sharedHp * 20}%` }} /></div></div>
             </div>
 
@@ -405,7 +408,7 @@ export function App() {
               <WebcamPreview
                 playerLabel={myPlayerId === "PLAYER_A" ? "Player 1" : "Player 2"}
                 active={trackingActive}
-                castingEnabled={state.status === "PLAYING"}
+                castingEnabled={display.status === "PLAYING"}
                 testMode={import.meta.env.DEV && lightweightTestMode}
                 onGesture={(gesture) => castGesture(gesture, performance.now())}
                 onGestureEnd={clearGesture}
@@ -420,10 +423,10 @@ export function App() {
             {state.status === "PLAYING" && !enemyAssetsReady && <RoundLoader label={`Summoning ${encounter.name}…`} />}
             {state.status === "PLAYING" && enemyAssetsReady && !bothPlayersReady && <RoundLoader label="Waiting for the other spellcaster…" />}
 
-            {state.status !== "PLAYING" && (
+            {display.status !== "PLAYING" && (
               <div className="absolute inset-0 z-[15] grid place-content-center bg-[radial-gradient(circle,#160f27aa,#08060fef_70%)] text-center">
-                <p className="m-0 text-[0.7rem] tracking-[0.15em] text-[#b7a6d1] uppercase">{state.status === "VICTORY" ? "The rift is sealed" : state.status === "DEFEAT" ? "The link has broken" : "Two hands. One spell."}</p>
-                <h2 className="font-display mt-2 mb-[22px] text-[clamp(2.4rem,7vw,5rem)]">{state.status === "VICTORY" ? "Victory" : state.status === "DEFEAT" ? "Defeat" : "Enter the arena"}</h2>
+                <p className="m-0 text-[0.7rem] tracking-[0.15em] text-[#b7a6d1] uppercase">{display.status === "VICTORY" ? "The rift is sealed" : display.status === "DEFEAT" ? "The link has broken" : "Two hands. One spell."}</p>
+                <h2 className="font-display mt-2 mb-[22px] text-[clamp(2.4rem,7vw,5rem)]">{display.status === "VICTORY" ? "Victory" : display.status === "DEFEAT" ? "Defeat" : "Enter the arena"}</h2>
                 {state.status === "LOBBY" && <p className="mb-4 text-xs tracking-[0.12em] text-[#b7a6d1] uppercase" aria-live="polite">Cameras ready · {readyCameraCount} / 2</p>}
                 {connection.isHost ? (
                   <button className="justify-self-center rounded-full border border-[#ff9a6a] bg-linear-to-br from-[#ffd376] to-[#ff7258] px-[22px] py-3 font-bold text-[#180b11] transition-transform hover:scale-105 disabled:cursor-not-allowed disabled:opacity-45" type="button" disabled={state.status === "LOBBY" && !bothCamerasReady} onClick={() => { if (state.status !== "LOBBY" || bothCamerasReady) dispatch({ type: state.status === "LOBBY" ? "START" : "RESET" }); }}>
