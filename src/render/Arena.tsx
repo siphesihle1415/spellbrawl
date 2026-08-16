@@ -2,7 +2,7 @@ import { Float, PointerLockControls, Sparkles, useAnimations, useGLTF } from "@r
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { LoopOnce, MathUtils, Mesh, Vector3, type AnimationAction, type AnimationClip, type Group, type Object3D, type PointLight } from "three";
-import { activeMonsterModelUrl, EMBERMAW_ANIMATED_TRANSFORM, EMBERMAW_ANIMATION_URLS, MONSTER_TRANSFORM, SHARD_WARDEN_ANIMATED_TRANSFORM, SHARD_WARDEN_ANIMATION_URLS } from "../game/monsters";
+import { activeMonsterModelUrl, EMBERMAW_ANIMATED_TRANSFORM, EMBERMAW_ANIMATION_URLS, HEXWYRM_ANIMATED_TRANSFORM, HEXWYRM_ANIMATION_URLS, MONSTER_TRANSFORM, SHARD_WARDEN_ANIMATED_TRANSFORM, SHARD_WARDEN_ANIMATION_URLS } from "../game/monsters";
 import type { GameState } from "../game/types";
 
 const SCENE_MESH_URL = "/models/spellbrawl-three-rooms-open-lighting.glb";
@@ -166,6 +166,13 @@ const SHARD_WARDEN_CLIP = {
   shotInTheBackAndFall: "Armature|Shot_in_the_Back_and_Fall|baselayer",
 } as const;
 
+const HEXWYRM_CLIP = {
+  walking: "Armature|walking_man|baselayer",
+  zombieScream: "Armature|Zombie_Scream|baselayer",
+  crouchChargeAndThrow: "Armature|Crouch_Charge_and_Throw|baselayer",
+  shotAndFallBackward: "Armature|Shot_and_Fall_Backward|baselayer",
+} as const;
+
 const CROSSFADE_SECONDS = 0.2;
 const EMBERMAW_DEFEAT_HOLD_MS = 2500;
 const SHARD_WARDEN_DEFEAT_HOLD_MS = 5500;
@@ -180,6 +187,11 @@ const SHARD_WARDEN_REST_Z = MONSTER_Z + SHARD_WARDEN_REST_OFFSET_Z;
 const SHARD_WARDEN_ENTRANCE_START_OFFSET_Z = -2.5;
 const SHARD_WARDEN_ENTRANCE_START_Z = SHARD_WARDEN_REST_Z + SHARD_WARDEN_ENTRANCE_START_OFFSET_Z;
 const SHARD_WARDEN_ENTRANCE_DURATION_MS = 3000;
+const HEXWYRM_REST_OFFSET_Z = 0.7;
+const HEXWYRM_REST_Z = MONSTER_Z + HEXWYRM_REST_OFFSET_Z;
+const HEXWYRM_ENTRANCE_START_OFFSET_Z = -2.5;
+const HEXWYRM_ENTRANCE_START_Z = HEXWYRM_REST_Z + HEXWYRM_ENTRANCE_START_OFFSET_Z;
+const HEXWYRM_ENTRANCE_DURATION_MS = 3000;
 
 // Reaction clips (e.g. Jumping_Punch) bake forward lunge into the Hips root bone, which would
 // otherwise shove the whole rig toward the camera each time they play. Pin X/Z to the first
@@ -393,6 +405,106 @@ function AnimatedShardWarden({ state, color }: { state: GameState; color: string
   );
 }
 
+function AnimatedHexwyrm({ state, color }: { state: GameState; color: string }) {
+  const group = useRef<Group>(null);
+  const entranceGroup = useRef<Group>(null);
+  const entranceStartAt = useRef<number | null>(null);
+  const shielded = state.phase === "SHIELDED" || state.phase === "ARMOR_PHASE";
+  const walking = useGLTF(HEXWYRM_ANIMATION_URLS.walking);
+  const zombieScream = useGLTF(HEXWYRM_ANIMATION_URLS.zombieScream);
+  const crouchChargeAndThrow = useGLTF(HEXWYRM_ANIMATION_URLS.crouchChargeAndThrow);
+  const shotAndFallBackward = useGLTF(HEXWYRM_ANIMATION_URLS.shotAndFallBackward);
+  const clips = useMemo(
+    () => [...walking.animations, ...zombieScream.animations, ...crouchChargeAndThrow.animations, ...shotAndFallBackward.animations].map(stripHorizontalRootMotion),
+    [walking.animations, zombieScream.animations, crouchChargeAndThrow.animations, shotAndFallBackward.animations],
+  );
+  const { actions, mixer } = useAnimations(clips, group);
+  const { scale, position } = HEXWYRM_ANIMATED_TRANSFORM;
+  const prev = useRef({ armorBreaks: state.armorBreaks, enemyAttackCount: state.enemyAttackCount, status: state.status });
+
+  useEffect(() => {
+    walking.scene.traverse((child) => {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    });
+  }, [walking.scene]);
+
+  useEffect(() => {
+    actions[HEXWYRM_CLIP.walking]?.reset().play();
+  }, [actions]);
+
+  // AnimatedHexwyrm only mounts once `status` is already "PLAYING" (Hexwyrm only appears
+  // mid-fight, after Shard Warden is defeated), so start the entrance once, on mount, the
+  // same way AnimatedShardWarden does.
+  useEffect(() => {
+    entranceStartAt.current = performance.now();
+  }, []);
+
+  useEffect(() => {
+    const onFinished = (event: { action: AnimationAction }) => {
+      if (event.action === actions[HEXWYRM_CLIP.zombieScream] || event.action === actions[HEXWYRM_CLIP.crouchChargeAndThrow]) {
+        crossfadeTo(actions, HEXWYRM_CLIP.walking, { once: false });
+      }
+    };
+    mixer.addEventListener("finished", onFinished);
+    return () => mixer.removeEventListener("finished", onFinished);
+  }, [actions, mixer]);
+
+  // Hexwyrm's Firebolt only lands once, for full damage, in the FUSION_FINISHER step (see
+  // applyDamage in engine.ts) — the enemyHp step down every other monster reacts to never
+  // happens mid-fight here. armorBreaks landing is this boss's actual "took a hit" moment, and
+  // status flipping to VICTORY (its round never changes away, unlike the earlier two rounds) is
+  // its defeat moment.
+  useEffect(() => {
+    const previous = prev.current;
+    if (state.round === "HEXWYRM" && state.armorBreaks > previous.armorBreaks) {
+      crossfadeTo(actions, HEXWYRM_CLIP.zombieScream, { once: true });
+    }
+    if (previous.status !== "VICTORY" && state.status === "VICTORY") {
+      crossfadeTo(actions, HEXWYRM_CLIP.shotAndFallBackward, { once: true, clampWhenFinished: true });
+    }
+    if (state.round === "HEXWYRM" && state.enemyAttackCount > previous.enemyAttackCount) {
+      crossfadeTo(actions, HEXWYRM_CLIP.crouchChargeAndThrow, { once: true });
+    }
+    prev.current = { armorBreaks: state.armorBreaks, enemyAttackCount: state.enemyAttackCount, status: state.status };
+  }, [state.armorBreaks, state.round, state.enemyAttackCount, state.status, actions]);
+
+  useFrame(() => {
+    if (!entranceGroup.current) return;
+    if (entranceStartAt.current === null) {
+      entranceGroup.current.position.z = HEXWYRM_ENTRANCE_START_Z;
+      return;
+    }
+    const elapsed = performance.now() - entranceStartAt.current;
+    const t = Math.min(1, elapsed / HEXWYRM_ENTRANCE_DURATION_MS);
+    entranceGroup.current.position.z = MathUtils.lerp(HEXWYRM_ENTRANCE_START_Z, HEXWYRM_REST_Z, t);
+  });
+
+  return (
+    <group ref={entranceGroup} position={[ROOM_CAMERA_X.HEXWYRM, 0.4, HEXWYRM_ENTRANCE_START_Z]}>
+      <Float speed={2} rotationIntensity={0.15} floatIntensity={0.3}>
+        <group ref={group} scale={scale} position={position}>
+          <primitive object={walking.scene} />
+        </group>
+        {shielded && (
+          <mesh position={[0, 0.34, 0]}>
+            <sphereGeometry args={[0.4, 32, 32]} />
+            <meshPhysicalMaterial
+              color="#8cecff"
+              transmission={0.75}
+              transparent
+              opacity={0.35}
+              roughness={0.05}
+              thickness={0.25}
+            />
+          </mesh>
+        )}
+      </Float>
+      <Sparkles count={25} position={[0, 0.35, 0]} scale={0.9} size={1.2} speed={0.4} color={color} />
+    </group>
+  );
+}
+
 useGLTF.preload(SCENE_MESH_URL);
 useGLTF.preload(activeMonsterModelUrl("EMBERMAW"));
 useGLTF.preload(activeMonsterModelUrl("SHARD_WARDEN"));
@@ -405,6 +517,10 @@ useGLTF.preload(SHARD_WARDEN_ANIMATION_URLS.walking);
 useGLTF.preload(SHARD_WARDEN_ANIMATION_URLS.skill03);
 useGLTF.preload(SHARD_WARDEN_ANIMATION_URLS.tripleComboAttack);
 useGLTF.preload(SHARD_WARDEN_ANIMATION_URLS.shotInTheBackAndFall);
+useGLTF.preload(HEXWYRM_ANIMATION_URLS.walking);
+useGLTF.preload(HEXWYRM_ANIMATION_URLS.zombieScream);
+useGLTF.preload(HEXWYRM_ANIMATION_URLS.crouchChargeAndThrow);
+useGLTF.preload(HEXWYRM_ANIMATION_URLS.shotAndFallBackward);
 
 const ANIMATED_DEFEAT_HOLD_MS: Partial<Record<GameState["round"], number>> = {
   EMBERMAW: EMBERMAW_DEFEAT_HOLD_MS,
@@ -443,6 +559,8 @@ export function Arena({ state, enemyColor, preview = false, resetKey = 0 }: { st
             <AnimatedEmbermaw state={state} color={enemyColor} />
           ) : visibleRound === "SHARD_WARDEN" ? (
             <AnimatedShardWarden state={state} color={enemyColor} />
+          ) : visibleRound === "HEXWYRM" ? (
+            <AnimatedHexwyrm state={state} color={enemyColor} />
           ) : (
             <Enemy state={state} color={enemyColor} />
           )}
