@@ -39,7 +39,8 @@ export function StartupLoader({ loadedAssets, totalAssets, errorMessage, onRetry
   if (complete) return null;
 
   const percentage = totalAssets === 0 ? 100 : Math.round((loadedAssets / totalAssets) * 100);
-  const status = errorMessage
+  const visibleError = loadingSlowly ? errorMessage : "";
+  const status = visibleError
     ? "The summoning was interrupted"
     : loadedAssets === 0
       ? "Opening the rift…"
@@ -60,9 +61,9 @@ export function StartupLoader({ loadedAssets, totalAssets, errorMessage, onRetry
           <span className="block h-full rounded-full bg-linear-to-r from-[#ff7658] via-[#bd74ff] to-[#6de6ff] transition-[width] duration-300" style={{ width: `${percentage}%` }} />
         </div>
         <p className="mt-3 text-xs tracking-[0.1em] text-[#b7a6d1] uppercase">{status}</p>
-        {(errorMessage || loadingSlowly) && (
-          <div className="mt-5 rounded-xl border border-[#68404f] bg-[#211018cc] px-4 py-3 text-sm text-[#f0c7cc]" role={errorMessage ? "alert" : "status"}>
-            <p className="m-0">{errorMessage ? "Some arena assets failed to load." : "The arena is taking longer than expected to download."}</p>
+        {(visibleError || loadingSlowly) && (
+          <div className="mt-5 rounded-xl border border-[#68404f] bg-[#211018cc] px-4 py-3 text-sm text-[#f0c7cc]" role={visibleError ? "alert" : "status"}>
+            <p className="m-0">{visibleError ? "Some arena assets failed to load." : "The arena is taking longer than expected to download."}</p>
             <button className="mt-3 cursor-pointer rounded-full border border-[#ff9a6a] bg-[#35161c] px-4 py-2 text-xs font-bold text-[#ffc0b7]" type="button" onClick={onRetry}>Retry loading</button>
           </div>
         )}

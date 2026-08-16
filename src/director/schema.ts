@@ -37,9 +37,9 @@ const HexwyrmSchema = Schema.Struct({
 const FinisherSchema = Schema.Struct({
   name: Schema.Literal("Starfall", "Riftbreaker", "Twin Nova"),
   clue: Schema.Literal(
-    "Player A holds FIST. Player B tears with HANDS APART. Player A finishes with OPEN PALM.",
-    "Anchor with Player A's FIST, split the veil with Player B's HANDS APART, then OPEN PALM.",
-    "FIST from A. HANDS APART from B. One final OPEN PALM from A.",
+    "Player A holds FIST. Player B PINCHES the rift. Player A finishes with OPEN PALM.",
+    "Anchor with Player A's FIST, pinch the veil with Player B, then OPEN PALM.",
+    "FIST from A. PINCH from B. One final OPEN PALM from A.",
   ),
 });
 

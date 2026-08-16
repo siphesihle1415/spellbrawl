@@ -41,7 +41,7 @@ export function resolveRoundReveal(
   const roundChanged = previous.round !== next.round;
   const enteredVictory = previous.status !== "VICTORY" && next.status === "VICTORY";
 
-  const holdMs = roundChanged ? DEFEAT_HOLD_MS[previous.round] : enteredVictory ? HEXWYRM_VICTORY_HOLD_MS : undefined;
+  const holdMs = roundChanged && previous.status === "PLAYING" ? DEFEAT_HOLD_MS[previous.round] : enteredVictory ? HEXWYRM_VICTORY_HOLD_MS : undefined;
   if (holdMs === undefined) return null;
 
   return {

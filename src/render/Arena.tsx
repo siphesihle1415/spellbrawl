@@ -6,6 +6,7 @@ import { ARENA_SCENE_URL, arenaAssetUrlsForRound } from "../game/assets";
 import { activeMonsterModelUrl, DEFEAT_HOLD_MS, EMBERMAW_ANIMATED_TRANSFORM, EMBERMAW_ANIMATION_URLS, HEXWYRM_ANIMATED_TRANSFORM, HEXWYRM_ANIMATION_URLS, MONSTER_TRANSFORM, ROUND_ANIMATION_URLS, SHARD_WARDEN_ANIMATED_TRANSFORM, SHARD_WARDEN_ANIMATION_URLS } from "../game/monsters";
 import type { CombatEffect, GameState, PlayerId } from "../game/types";
 import { FireballEffect } from "./FireballEffect";
+import { SpellProjectileEffect } from "./SpellProjectileEffect";
 import { playerCameraX } from "./playerCamera";
 
 const SCENE_SCALE = 10.5;
@@ -61,6 +62,7 @@ function RoomCamera({ round, playerId, preview, resetKey, effect, emergeTick }: 
 
   useEffect(() => {
     if (effect?.kind === "PLAYER_HIT") playerHitShakeUntil.current = performance.now() + 550;
+    if (effect?.kind === "STARFALL") emergeShakeUntil.current = performance.now() + 2_400;
   }, [effect?.id, effect?.kind]);
 
   // `emergeTick` only bumps once the defeated monster's model has actually been swapped out for
@@ -188,28 +190,25 @@ function PlayerPositions({ roomX }: { roomX: number }) {
   );
 }
 
-function PulseEffect({ roomX, effect }: { roomX: number; effect: CombatEffect }) {
+function StarfallEffect({ roomX }: { roomX: number }) {
   const group = useRef<Group>(null);
   const started = useRef(performance.now());
   useFrame(() => {
     if (!group.current) return;
-    const progress = Math.min(1, (performance.now() - started.current) / 900);
-    const scale = 0.3 + progress * 1.4;
-    group.current.scale.setScalar(scale);
-    group.current.rotation.z += 0.025;
+    const progress = Math.min(1, (performance.now() - started.current) / 2_300);
+    group.current.scale.setScalar(0.2 + Math.sin(Math.min(1, progress * 1.7) * Math.PI / 2) * 1.7);
+    group.current.rotation.y += 0.035;
     if (progress === 1) group.current.visible = false;
   });
-  const starfall = effect.kind === "STARFALL";
-  const armor = effect.kind === "ARMOR_BREAK";
-  const color = starfall ? "#f055ff" : armor ? "#ffad27" : "#55ff9a";
   return (
-    <group ref={group} position={[roomX, starfall ? 0.85 : 0.55, MONSTER_Z]}>
-      <mesh>
-        <torusGeometry args={[0.22, 0.018, 12, 48]} />
-        <meshBasicMaterial color={color} transparent opacity={0.75} blending={AdditiveBlending} />
+    <group ref={group} position={[roomX, 0.65, MONSTER_Z]}>
+      <mesh position={[0, 2.5, 0]}>
+        <cylinderGeometry args={[0.035, 0.16, 5, 8]} />
+        <meshBasicMaterial color="#e9f7ff" transparent opacity={0.92} blending={AdditiveBlending} depthWrite={false} />
       </mesh>
-      <Sparkles count={starfall ? 90 : 45} scale={starfall ? 1.5 : 0.8} size={starfall ? 4 : 2} speed={2.5} color={color} />
-      <pointLight color={color} intensity={starfall ? 24 : 12} distance={4} />
+      <mesh rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[0.28, 0.035, 12, 64]} /><meshBasicMaterial color="#a66cff" transparent opacity={0.82} blending={AdditiveBlending} depthWrite={false} /></mesh>
+      <Sparkles count={180} position={[0, 1.5, 0]} scale={[1.7, 5, 1.7]} size={5} speed={5} color="#d7b2ff" />
+      <pointLight color="#d9b5ff" intensity={38} distance={8} />
     </group>
   );
 }
@@ -224,8 +223,10 @@ function SpellEffect({ roomX, round, effect }: { roomX: number; round: GameState
       />
     );
   }
-  if (effect.kind === "STARFALL" || effect.kind === "ARMOR_BREAK" || effect.kind === "BARRIER") {
-    return <PulseEffect roomX={roomX} effect={effect} />;
+  if (effect.kind === "STARFALL") return <StarfallEffect roomX={roomX} />;
+  if (effect.kind === "ARMOR_BREAK" || effect.kind === "BARRIER") {
+    const caster = effect.playerId ?? "PLAYER_A";
+    return <SpellProjectileEffect source={[playerCameraX(roomX, caster, false), ROOM_CAMERA_Y[round] - 0.1, CAMERA_SPAWN_Z - 0.18]} target={[roomX, 0.62, MONSTER_Z + 0.05]} color={effect.kind === "ARMOR_BREAK" ? "#ffad27" : "#55f6ff"} twin={effect.kind === "BARRIER"} />;
   }
   return null;
 }
@@ -407,7 +408,7 @@ function AnimatedEmbermaw({ state, color }: { state: GameState; color: string })
     if (state.round === "EMBERMAW" && previous.round === "EMBERMAW" && state.enemyHp < previous.enemyHp && state.enemyHp > 0) {
       crossfadeTo(actions, EMBERMAW_CLIP.zombieScream, { once: true });
     }
-    if (previous.round === "EMBERMAW" && state.round !== "EMBERMAW") {
+    if ((previous.round === "EMBERMAW" && state.round !== "EMBERMAW") || (previous.status !== "MONSTER_DEFEATED" && state.status === "MONSTER_DEFEATED")) {
       crossfadeTo(actions, EMBERMAW_CLIP.fallingDown, { once: true, clampWhenFinished: true });
     }
     if (state.round === "EMBERMAW" && previous.round === "EMBERMAW" && state.enemyAttackCount > previous.enemyAttackCount) {
@@ -460,7 +461,7 @@ function AnimatedShardWarden({ state, color }: { state: GameState; color: string
   );
   const { actions, mixer } = useAnimations(clips, group);
   const { scale, position } = SHARD_WARDEN_ANIMATED_TRANSFORM;
-  const prev = useRef({ enemyHp: state.enemyHp, round: state.round, enemyAttackCount: state.enemyAttackCount });
+  const prev = useRef({ enemyHp: state.enemyHp, round: state.round, enemyAttackCount: state.enemyAttackCount, status: state.status });
 
   useEffect(() => {
     walking.scene.traverse((child) => {
@@ -498,14 +499,14 @@ function AnimatedShardWarden({ state, color }: { state: GameState; color: string
     if (state.round === "SHARD_WARDEN" && previous.round === "SHARD_WARDEN" && state.enemyHp < previous.enemyHp && state.enemyHp > 0) {
       crossfadeTo(actions, SHARD_WARDEN_CLIP.skill03, { once: true });
     }
-    if (previous.round === "SHARD_WARDEN" && state.round !== "SHARD_WARDEN") {
+    if ((previous.round === "SHARD_WARDEN" && state.round !== "SHARD_WARDEN") || (previous.status !== "MONSTER_DEFEATED" && state.status === "MONSTER_DEFEATED")) {
       crossfadeTo(actions, SHARD_WARDEN_CLIP.shotInTheBackAndFall, { once: true, clampWhenFinished: true });
     }
     if (state.round === "SHARD_WARDEN" && previous.round === "SHARD_WARDEN" && state.enemyAttackCount > previous.enemyAttackCount) {
       crossfadeTo(actions, SHARD_WARDEN_CLIP.tripleComboAttack, { once: true });
     }
-    prev.current = { enemyHp: state.enemyHp, round: state.round, enemyAttackCount: state.enemyAttackCount };
-  }, [state.enemyHp, state.round, state.enemyAttackCount, actions]);
+    prev.current = { enemyHp: state.enemyHp, round: state.round, enemyAttackCount: state.enemyAttackCount, status: state.status };
+  }, [state.enemyHp, state.round, state.enemyAttackCount, state.status, actions]);
 
   useFrame(() => {
     if (!entranceGroup.current) return;
@@ -598,7 +599,7 @@ function AnimatedHexwyrm({ state, color }: { state: GameState; color: string }) 
     if (state.round === "HEXWYRM" && state.armorBreaks > previous.armorBreaks) {
       crossfadeTo(actions, HEXWYRM_CLIP.zombieScream, { once: true });
     }
-    if (previous.status !== "VICTORY" && state.status === "VICTORY") {
+    if (previous.status !== "MONSTER_DEFEATED" && state.status === "MONSTER_DEFEATED") {
       crossfadeTo(actions, HEXWYRM_CLIP.shotAndFallBackward, { once: true, clampWhenFinished: true });
     }
     if (state.round === "HEXWYRM" && state.enemyAttackCount > previous.enemyAttackCount) {
@@ -673,6 +674,11 @@ export function Arena({ state, playerId, enemyColor, now = 0, preview = false, r
 
   useEffect(() => {
     if (visibleRound === state.round) return;
+    if (state.status === "DIALOGUE") {
+      setVisibleRound(state.round);
+      setEmergeTick((tick) => tick + 1);
+      return;
+    }
     const holdMs = DEFEAT_HOLD_MS[visibleRound];
     const reveal = () => {
       setVisibleRound(state.round);
