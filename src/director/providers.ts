@@ -5,6 +5,7 @@ import {
   runConfigurationJsonSchema,
   type RunConfiguration,
 } from "./schema";
+import type { RoundId } from "../game/types";
 
 const { $schema: _schemaDialect, ...directorOutputSchema } = runConfigurationJsonSchema;
 
@@ -46,6 +47,44 @@ const factsUserPrompt = [
   `JSON Schema: ${JSON.stringify(factsOutputSchema)}`,
 ].join("\n");
 
+export type DialogueMonster = { name: string; title: string; theme: string };
+
+const dialogueSystemPrompt = [
+  "You are the SpellBrawl Director.",
+  "Never alter combat rules, HP, timing, damage, phases, or gesture mechanics.",
+  "Write exactly three short spoken lines for a co-op fantasy battle encounter: line 1 spoken by the monster, lines 2 and 3 spoken by the two co-op players responding, matching the game's \"we act as one\" tone.",
+  "Return only one JSON object matching the supplied schema, with no Markdown or explanation.",
+].join(" ");
+
+const dialogueRoundBeats: Record<RoundId, string> = {
+  EMBERMAW: "the practice round is over, the real fight begins",
+  SHARD_WARDEN: "no spell may cross the crystal threshold",
+  HEXWYRM: "the void opens, the players must finish it together",
+};
+
+const dialogueOutputSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["lines"],
+  properties: {
+    lines: {
+      type: "array",
+      minItems: 3,
+      maxItems: 3,
+      items: { type: "string", minLength: 20, maxLength: 100 },
+    },
+  },
+};
+
+function dialogueUserPrompt(round: RoundId, monster: DialogueMonster): string {
+  return [
+    `Monster: ${monster.name}, "${monster.title}" (${monster.theme} theme).`,
+    `Dramatic beat: ${dialogueRoundBeats[round]}.`,
+    "Write the monster's opening line, then two lines of co-op player response.",
+    `JSON Schema: ${JSON.stringify(dialogueOutputSchema)}`,
+  ].join("\n");
+}
+
 function decodeText(text: string | null): RunConfiguration | null {
   if (!text) return null;
   const trimmed = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
@@ -70,6 +109,22 @@ function decodeFacts(text: string | null): string[] | null {
     if (!Array.isArray(candidate.facts) || candidate.facts.length < 3 || candidate.facts.length > 5) return null;
     if (candidate.facts.some((fact) => typeof fact !== "string" || fact.length < 30 || fact.length > 220)) return null;
     return candidate.facts;
+  } catch {
+    return null;
+  }
+}
+
+function decodeDialogueLines(text: string | null): string[] | null {
+  if (!text) return null;
+  const trimmed = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  const firstBrace = trimmed.indexOf("{");
+  const lastBrace = trimmed.lastIndexOf("}");
+  if (firstBrace < 0 || lastBrace < firstBrace) return null;
+  try {
+    const candidate = JSON.parse(trimmed.slice(firstBrace, lastBrace + 1)) as { lines?: unknown };
+    if (!Array.isArray(candidate.lines) || candidate.lines.length !== 3) return null;
+    if (candidate.lines.some((line) => typeof line !== "string" || line.length < 20 || line.length > 100)) return null;
+    return candidate.lines;
   } catch {
     return null;
   }
@@ -213,6 +268,56 @@ export async function generateProviderFacts(
     const payload = await response.json() as { output_text?: string; output?: Array<{ type?: string; content?: Array<{ type?: string; text?: string }> }> };
     const outputText = payload.output_text ?? payload.output?.find((item) => item.type === "message")?.content?.find((item) => item.type === "output_text" || item.type === "text")?.text;
     return decodeFacts(outputText ?? null);
+  } catch {
+    return null;
+  }
+}
+
+export async function generateProviderDialogue(
+  config: DirectorRuntimeConfig,
+  round: RoundId,
+  monster: DialogueMonster,
+  signal: AbortSignal,
+): Promise<string[] | null> {
+  if (config.provider === "static") return null;
+  if (!config.apiKey || !config.model) return null;
+
+  const userPrompt = dialogueUserPrompt(round, monster);
+
+  try {
+    if (config.provider === "ollama") {
+      const response = await post(`${config.baseUrl}/api/chat`, {
+        model: config.model,
+        messages: [{ role: "system", content: dialogueSystemPrompt }, { role: "user", content: userPrompt }],
+        stream: false,
+      }, signal, { authorization: `Bearer ${config.apiKey}` });
+      if (!response.ok) return null;
+      const payload = await response.json() as { message?: { content?: string } };
+      return decodeDialogueLines(payload.message?.content ?? null);
+    }
+    if (config.provider === "anthropic") {
+      const response = await post(`${config.baseUrl}/v1/messages`, {
+        model: config.model,
+        max_tokens: 400,
+        temperature: 0.8,
+        system: dialogueSystemPrompt,
+        messages: [{ role: "user", content: userPrompt }],
+      }, signal, { "x-api-key": config.apiKey!, "anthropic-version": "2023-06-01" });
+      if (!response.ok) return null;
+      const payload = await response.json() as { content?: Array<{ type?: string; text?: string }> };
+      return decodeDialogueLines(payload.content?.find((item) => item.type === "text")?.text ?? null);
+    }
+    const response = await post(`${config.baseUrl}/responses`, {
+      model: config.model,
+      instructions: dialogueSystemPrompt,
+      input: userPrompt,
+      text: { format: { type: "json_schema", name: "spellbrawl_dialogue", strict: true, schema: dialogueOutputSchema } },
+      max_output_tokens: 400,
+    }, signal, { authorization: `Bearer ${config.apiKey}` });
+    if (!response.ok) return null;
+    const payload = await response.json() as { output_text?: string; output?: Array<{ type?: string; content?: Array<{ type?: string; text?: string }> }> };
+    const outputText = payload.output_text ?? payload.output?.find((item) => item.type === "message")?.content?.find((item) => item.type === "output_text" || item.type === "text")?.text;
+    return decodeDialogueLines(outputText ?? null);
   } catch {
     return null;
   }

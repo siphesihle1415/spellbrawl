@@ -11,6 +11,7 @@ export type SemanticRoomEvent =
   | { type: "PROGRESSION_CHOICE"; playerId: PlayerId; choice: "CONTINUE" | "EXIT" }
   | { type: "STATE_SYNC"; state: GameState; sentAt: number }
   | { type: "DIRECTOR_SYNC"; configuration: RunConfiguration; source: DirectorSource }
+  | { type: "DIALOGUE_SYNC"; round: RoundId; lines: string[] }
   | { type: "SESSION_END"; playerId: PlayerId }
   | { type: "ROUND_READY"; playerId: PlayerId; round: RoundId }
   | { type: "PEER_LEFT" };
