@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ACTIVE_MONSTER_VARIANT, EMBERMAW_ANIMATION_URLS, HEXWYRM_ANIMATION_URLS, MONSTER_VARIANTS, SHARD_WARDEN_ANIMATION_URLS, activeMonsterModelUrl, resolveVariant } from "./monsters";
+import { ACTIVE_MONSTER_VARIANT, DEFEAT_HOLD_MS, EMBERMAW_ANIMATION_URLS, HEXWYRM_ANIMATION_URLS, HEXWYRM_VICTORY_HOLD_MS, MONSTER_VARIANTS, SHARD_WARDEN_ANIMATION_URLS, activeMonsterModelUrl, resolveVariant } from "./monsters";
 
 describe("resolveVariant", () => {
   const variants = [
@@ -56,5 +56,22 @@ describe("HEXWYRM_ANIMATION_URLS", () => {
       crouchChargeAndThrow: "/models/monsters/hexwyrm-crouch-charge-and-throw.glb",
       shotAndFallBackward: "/models/monsters/hexwyrm-shot-and-fall-backward.glb",
     });
+  });
+});
+
+describe("DEFEAT_HOLD_MS", () => {
+  it("holds Embermaw and Shard Warden's defeat before revealing the next round", () => {
+    expect(DEFEAT_HOLD_MS.EMBERMAW).toBe(2500);
+    expect(DEFEAT_HOLD_MS.SHARD_WARDEN).toBe(5500);
+  });
+
+  it("has no entry for Hexwyrm — it has no next round to reveal", () => {
+    expect(DEFEAT_HOLD_MS.HEXWYRM).toBeUndefined();
+  });
+});
+
+describe("HEXWYRM_VICTORY_HOLD_MS", () => {
+  it("is a positive duration", () => {
+    expect(HEXWYRM_VICTORY_HOLD_MS).toBeGreaterThan(0);
   });
 });
