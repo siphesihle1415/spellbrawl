@@ -86,3 +86,18 @@ export const ATTACK_IMPACT_DELAY_MS: Record<RoundId, number> = {
   SHARD_WARDEN: 2200,
   HEXWYRM: 3120,
 };
+
+// How long to hold a defeated boss's model/HUD before revealing the next round, so the death
+// clip has time to finish before anything about what's next appears (see Arena.tsx's
+// `visibleRound` and App.tsx's `useRoundDisplay`). Sized to each clip's actual duration, measured
+// via `gltf-transform inspect --format csv`, plus headroom. No entry for HEXWYRM: defeating it
+// doesn't advance `round` (see engine.ts's `applyDamage`), so there's no "next round" to hold for
+// here — see HEXWYRM_VICTORY_HOLD_MS below for its own reveal instead.
+export const DEFEAT_HOLD_MS: Partial<Record<RoundId, number>> = {
+  EMBERMAW: 2500, // falling_down: 2.267s
+  SHARD_WARDEN: 5500, // Shot_in_the_Back_and_Fall: 4.667s
+};
+
+// How long to hold the fight screen (not the Victory overlay) after Hexwyrm's HP hits 0, so its
+// Shot_and_Fall_Backward clip (3.5s) has time to finish before the Victory screen covers it.
+export const HEXWYRM_VICTORY_HOLD_MS = 4000;
