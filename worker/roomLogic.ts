@@ -16,6 +16,7 @@ const ROOM_CAPACITY = 2;
 export class RoomLogic {
   private readonly playerIdByConnectionId = new Map<string, PlayerId>();
   private readonly readyPlayerIds = new Set<PlayerId>();
+  private readonly cameraReadyPlayerIds = new Set<PlayerId>();
 
   constructor(private readonly room: Room) {}
 
@@ -37,15 +38,18 @@ export class RoomLogic {
     for (const readyPlayerId of this.readyPlayerIds) {
       connection.send(JSON.stringify({ type: "PLAYER_READY", playerId: readyPlayerId }));
     }
+    for (const cameraReadyPlayerId of this.cameraReadyPlayerIds) {
+      connection.send(JSON.stringify({ type: "CAMERA_READY", playerId: cameraReadyPlayerId, ready: true }));
+    }
   }
 
   onMessage(message: string, sender: Connection): void {
     const senderPlayerId = this.playerIdByConnectionId.get(sender.id);
     if (senderPlayerId === undefined) return; // never accepted (e.g. rejected 3rd connection)
 
-    let event: { type: string; playerId?: PlayerId };
+    let event: { type: string; playerId?: PlayerId; ready?: boolean };
     try {
-      event = JSON.parse(message) as { type: string; playerId?: PlayerId };
+      event = JSON.parse(message) as { type: string; playerId?: PlayerId; ready?: boolean };
     } catch {
       return; // tolerate a malformed/binary frame instead of throwing out of the relay
     }
@@ -58,6 +62,7 @@ export class RoomLogic {
     // State and Director configuration are host-authoritative. A guest must not be able to
     // forge either the combat state or the presentation shared by the room.
     if ((event.type === "STATE_SYNC" || event.type === "DIRECTOR_SYNC") && senderPlayerId !== "PLAYER_A") return;
+    if (event.type === "CAMERA_READY" && typeof event.ready !== "boolean") return;
 
     // The server is the source of truth for identity: bind any player-scoped message to the
     // sender's assigned role so a client can't drive the other player's inputs (or fabricate
@@ -69,6 +74,10 @@ export class RoomLogic {
     }
     if (event.type === "PLAYER_READY") {
       this.readyPlayerIds.add(senderPlayerId);
+    }
+    if (event.type === "CAMERA_READY") {
+      if (event.ready) this.cameraReadyPlayerIds.add(senderPlayerId);
+      else this.cameraReadyPlayerIds.delete(senderPlayerId);
     }
     this.room.broadcast(outgoing, [sender.id]);
   }
@@ -82,6 +91,7 @@ export class RoomLogic {
     // Clear only the leaving player's ready flag, not the surviving peer's — the onConnect
     // replay relies on the survivor's flag to re-signal ready to a rejoining player.
     this.readyPlayerIds.delete(playerId);
+    this.cameraReadyPlayerIds.delete(playerId);
     this.room.broadcast(JSON.stringify({ type: "PEER_LEFT" }), [connection.id]);
   }
 }

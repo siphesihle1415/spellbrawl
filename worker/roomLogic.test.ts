@@ -248,6 +248,21 @@ describe("RoomLogic", () => {
     expect(messagesOf(first)).toContainEqual({ type: "PEER_LEFT" });
   });
 
+  it("relays and replays camera readiness using the server-assigned player identity", () => {
+    const room = new FakeRoom();
+    const logic = new RoomLogic(room as never);
+    const host = new FakeConnection("host-1");
+    room.add(host);
+    logic.onConnect(host as never);
+    logic.onMessage(JSON.stringify({ type: "CAMERA_READY", playerId: "PLAYER_B", ready: true }), host as never);
+
+    const guest = new FakeConnection("guest-1");
+    room.add(guest);
+    logic.onConnect(guest as never);
+
+    expect(messagesOf(guest)).toContainEqual({ type: "CAMERA_READY", playerId: "PLAYER_A", ready: true });
+  });
+
   it("relays a player-authenticated session end to the peer", () => {
     const room = new FakeRoom();
     const logic = new RoomLogic(room as never);

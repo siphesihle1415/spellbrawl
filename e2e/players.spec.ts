@@ -15,8 +15,11 @@ test("two players see the combat HUD, synced gestures, and shared session exit",
   await guest.getByPlaceholder("CODE").fill(roomCode!);
   await guest.getByRole("button", { name: "Join" }).click();
 
-  await expect(host.getByRole("button", { name: "Start" })).toBeVisible();
-  await expect(host.getByText("Tracking paused", { exact: true })).toHaveCount(2);
+  await expect(host.getByRole("button", { name: "Waiting for cameras" })).toBeDisabled();
+  await host.getByLabel("Player 1 hand tracking").getByRole("button", { name: "Grant camera access" }).click();
+  await guest.getByLabel("Player 2 hand tracking").getByRole("button", { name: "Grant camera access" }).click();
+  await expect(host.getByText("Cameras ready · 2 / 2", { exact: true })).toBeVisible();
+  await expect(host.getByRole("button", { name: "Start" })).toBeEnabled();
   await host.screenshot({ path: "test-results/connected-lobby.png", fullPage: true });
 
   await host.getByRole("button", { name: "Start" }).click();
@@ -46,6 +49,10 @@ test("two players see the combat HUD, synced gestures, and shared session exit",
   await host.keyboard.press("1");
   await host.keyboard.press("2");
   await expect(host.getByText("2 / 3 HP", { exact: false })).toBeVisible();
+  const guestShieldMove = guest.locator(".compact-spell").filter({ hasText: "Arcane Shield" });
+  await host.keyboard.press("2");
+  await expect(guestShieldMove).toHaveClass(/is-active/);
+  await expect(guestShieldMove).not.toHaveClass(/is-active/, { timeout: 3_000 });
   await host.getByRole("button", { name: "Exit lobby" }).click();
   await expect(guest.getByText("The arena session was ended by the other player.")).toBeVisible();
 

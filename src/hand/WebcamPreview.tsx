@@ -91,15 +91,22 @@ const requestCamera = async () => {
   }
 };
 
-export function WebcamPreview({ onGesture, onGestureEnd, active, playerLabel }: { onGesture: (gesture: Gesture, confidence: number) => void; onGestureEnd: () => void; active: boolean; playerLabel: string }) {
+export function WebcamPreview({ onGesture, onGestureEnd, onReadyChange, active, playerLabel, testMode = false }: { onGesture: (gesture: Gesture, confidence: number) => void; onGestureEnd: () => void; onReadyChange: (ready: boolean) => void; active: boolean; playerLabel: string; testMode?: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sourceRef = useRef<MediaPipeGestureSource | null>(null);
   const runIdRef = useRef(0);
   const poseWasPresentRef = useRef(false);
+  const readyRef = useRef(false);
   const [status, setStatus] = useState<TrackingStatus>("idle");
   const [pose, setPose] = useState<PoseResult | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
+
+  const reportReady = (ready: boolean) => {
+    if (readyRef.current === ready) return;
+    readyRef.current = ready;
+    onReadyChange(ready);
+  };
 
   const stopTracking = () => {
     runIdRef.current += 1;
@@ -111,6 +118,7 @@ export function WebcamPreview({ onGesture, onGestureEnd, active, playerLabel }: 
     setStatus("idle");
     setPose(null);
     poseWasPresentRef.current = false;
+    reportReady(false);
     onGestureEnd();
   };
 
@@ -132,6 +140,11 @@ export function WebcamPreview({ onGesture, onGestureEnd, active, playerLabel }: 
     const runId = ++runIdRef.current;
     setStatus("starting");
     setErrorMessage("");
+    if (testMode) {
+      setStatus("tracking");
+      reportReady(true);
+      return;
+    }
     let stream: MediaStream | undefined;
     try {
       stream = await requestCamera();
@@ -162,11 +175,13 @@ export function WebcamPreview({ onGesture, onGestureEnd, active, playerLabel }: 
         return;
       }
       setStatus("tracking");
+      reportReady(true);
     } catch (error) {
       sourceRef.current?.stop();
       sourceRef.current = null;
       stream?.getTracks().forEach((track) => track.stop());
       if (runId !== runIdRef.current) return;
+      reportReady(false);
       const permissionBlocked = error instanceof DOMException && (error.name === "NotAllowedError" || error.name === "PermissionDeniedError");
       const requestTimedOut = error instanceof DOMException && error.name === "TimeoutError";
       setStatus(permissionBlocked ? "blocked" : "error");

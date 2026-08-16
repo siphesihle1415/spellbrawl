@@ -2,6 +2,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { directMessage, encounterForRound } from "./director/defaultConfig";
 import { useRunConfiguration } from "./director/useRunConfiguration";
 import { gameReducer, initialGameState } from "./game/engine";
+import { rebaseSyncedState } from "./game/syncClock";
 import type { Gesture, PlayerId, RoundId } from "./game/types";
 import { WebcamPreview } from "./hand/WebcamPreview";
 import { CloudflareRoomTransport } from "./multiplayer/CloudflareRoomTransport";
@@ -37,11 +38,31 @@ export function App() {
   const [previewResetKey, setPreviewResetKey] = useState(0);
   const [loadedAssets, setLoadedAssets] = useState<Set<string>>(() => new Set());
   const [now, setNow] = useState(0);
+  const [cameraReadyByPlayer, setCameraReadyByPlayer] = useState<Record<PlayerId, boolean>>({ PLAYER_A: false, PLAYER_B: false });
+  const cameraReadyRef = useRef<Record<PlayerId, boolean>>({ PLAYER_A: false, PLAYER_B: false });
   const roleRef = useRef<{ myPlayerId: PlayerId; isHost: boolean } | null>(null);
   const hasHostRole = (connection.status === "WAITING_FOR_PEER" || connection.status === "CONNECTED") && connection.isHost;
   const { configuration, status: directorStatus, applyRemoteConfiguration } = useRunConfiguration(hasHostRole);
 
   const encounter = encounterForRound(configuration, state.round);
+
+  const applyCameraReady = useCallback((playerId: PlayerId, ready: boolean) => {
+    if (cameraReadyRef.current[playerId] === ready) return;
+    cameraReadyRef.current = { ...cameraReadyRef.current, [playerId]: ready };
+    setCameraReadyByPlayer(cameraReadyRef.current);
+  }, []);
+
+  const resetCameraReadiness = useCallback(() => {
+    cameraReadyRef.current = { PLAYER_A: false, PLAYER_B: false };
+    setCameraReadyByPlayer(cameraReadyRef.current);
+  }, []);
+
+  const reportLocalCameraReady = useCallback((ready: boolean) => {
+    const role = roleRef.current;
+    if (!role || cameraReadyRef.current[role.myPlayerId] === ready) return;
+    applyCameraReady(role.myPlayerId, ready);
+    transport.publish({ type: "CAMERA_READY", playerId: role.myPlayerId, ready });
+  }, [applyCameraReady, transport]);
 
   const castGesture = (gesture: Gesture, at: number) => {
     const role = roleRef.current;
@@ -71,6 +92,7 @@ export function App() {
   useEffect(() => {
     const unsubscribe = transport.subscribe((event) => {
       if (event.type === "ROLE_ASSIGNED") {
+        resetCameraReadiness();
         roleRef.current = { myPlayerId: event.playerId, isHost: event.isHost };
         setConnection((current) =>
           current.status === "CONNECTING"
@@ -88,8 +110,13 @@ export function App() {
         );
         return;
       }
+      if (event.type === "CAMERA_READY") {
+        applyCameraReady(event.playerId, event.ready);
+        return;
+      }
       if (event.type === "PEER_LEFT") {
         dispatch({ type: "RESET" });
+        resetCameraReadiness();
         setConnection((current) =>
           current.status === "WAITING_FOR_PEER" || current.status === "CONNECTED"
             ? { status: "PEER_LEFT", code: current.code, myPlayerId: current.myPlayerId, isHost: current.isHost }
@@ -99,6 +126,7 @@ export function App() {
       }
       if (event.type === "SESSION_END") {
         dispatch({ type: "RESET" });
+        resetCameraReadiness();
         roleRef.current = null;
         transport.disconnect();
         setConnectError("The arena session was ended by the other player.");
@@ -120,7 +148,7 @@ export function App() {
         return;
       }
       if (event.type === "STATE_SYNC") {
-        dispatch({ type: "SYNC", state: event.state });
+        dispatch({ type: "SYNC", state: rebaseSyncedState(event.state, event.sentAt, performance.now()) });
         return;
       }
       if (event.type === "DIRECTOR_SYNC") {
@@ -128,13 +156,13 @@ export function App() {
       }
     });
     return unsubscribe;
-  }, [transport, applyRemoteConfiguration]);
+  }, [transport, applyRemoteConfiguration, applyCameraReady, resetCameraReadiness]);
 
   useEffect(() => () => transport.disconnect(), [transport]);
 
   useEffect(() => {
     if (connection.status === "CONNECTED" && connection.isHost) {
-      transport.publish({ type: "STATE_SYNC", state });
+      transport.publish({ type: "STATE_SYNC", state, sentAt: performance.now() });
     }
   }, [state, connection, transport]);
 
@@ -202,7 +230,9 @@ export function App() {
   const arenaState = isPreviewing ? { ...state, round: previewRound } : state;
   const myPlayerId = hasRoom ? connection.myPlayerId : "PLAYER_A";
   const otherPlayerId: PlayerId = myPlayerId === "PLAYER_A" ? "PLAYER_B" : "PLAYER_A";
-  const trackingActive = connected && state.status === "PLAYING";
+  const trackingActive = connected && (state.status === "LOBBY" || state.status === "PLAYING");
+  const bothCamerasReady = cameraReadyByPlayer.PLAYER_A && cameraReadyByPlayer.PLAYER_B;
+  const readyCameraCount = Number(cameraReadyByPlayer.PLAYER_A) + Number(cameraReadyByPlayer.PLAYER_B);
   const onAssetLoaded = useCallback((assetUrl: string) => {
     setLoadedAssets((current) => current.has(assetUrl) ? current : new Set(current).add(assetUrl));
   }, []);
@@ -214,6 +244,7 @@ export function App() {
       transport.disconnect();
       roleRef.current = null;
       dispatch({ type: "RESET" });
+      resetCameraReadiness();
       setConnectError("");
       setConnection({ status: "IDLE" });
     }, connected ? 120 : 0);
@@ -289,9 +320,16 @@ export function App() {
 
             <MoveMenu state={state} playerId={myPlayerId} now={now} />
 
-            <div className="player-cameras">
-              <WebcamPreview playerLabel={myPlayerId === "PLAYER_A" ? "Player 1" : "Player 2"} active={trackingActive} onGesture={(gesture) => castGesture(gesture, performance.now())} onGestureEnd={clearGesture} />
-              <RemoteHandPreview playerLabel={otherPlayerId === "PLAYER_A" ? "Player 1" : "Player 2"} active={trackingActive} gesture={state.players[otherPlayerId].lastGesture} />
+            <div className={`player-cameras ${state.status === "LOBBY" ? "is-lobby" : ""}`}>
+              <WebcamPreview
+                playerLabel={myPlayerId === "PLAYER_A" ? "Player 1" : "Player 2"}
+                active={trackingActive}
+                testMode={import.meta.env.DEV && lightweightTestMode}
+                onGesture={(gesture) => { if (state.status === "PLAYING") castGesture(gesture, performance.now()); }}
+                onGestureEnd={clearGesture}
+                onReadyChange={reportLocalCameraReady}
+              />
+              <RemoteHandPreview playerLabel={otherPlayerId === "PLAYER_A" ? "Player 1" : "Player 2"} active={trackingActive} ready={cameraReadyByPlayer[otherPlayerId]} gesture={state.players[otherPlayerId].lastGesture} />
             </div>
 
             {state.sharedHp <= 2 && state.status === "PLAYING" && <div className="low-health-vignette" aria-hidden="true" />}
@@ -301,12 +339,13 @@ export function App() {
               <div className="absolute inset-0 z-[15] grid place-content-center bg-[radial-gradient(circle,#160f27aa,#08060fef_70%)] text-center">
                 <p className="m-0 text-[0.7rem] tracking-[0.15em] text-[#b7a6d1] uppercase">{state.status === "VICTORY" ? "The rift is sealed" : state.status === "DEFEAT" ? "The link has broken" : "Two hands. One spell."}</p>
                 <h2 className="font-display mt-2 mb-[22px] text-[clamp(2.4rem,7vw,5rem)]">{state.status === "VICTORY" ? "Victory" : state.status === "DEFEAT" ? "Defeat" : "Enter the arena"}</h2>
+                {state.status === "LOBBY" && <p className="mb-4 text-xs tracking-[0.12em] text-[#b7a6d1] uppercase" aria-live="polite">Cameras ready · {readyCameraCount} / 2</p>}
                 {connection.isHost ? (
-                  <button className="justify-self-center rounded-full border border-[#ff9a6a] bg-linear-to-br from-[#ffd376] to-[#ff7258] px-[22px] py-3 font-bold text-[#180b11] transition-transform hover:scale-105" type="button" onClick={() => dispatch({ type: state.status === "LOBBY" ? "START" : "RESET" })}>
-                    {state.status === "LOBBY" ? "Start" : "Return to lobby"}
+                  <button className="justify-self-center rounded-full border border-[#ff9a6a] bg-linear-to-br from-[#ffd376] to-[#ff7258] px-[22px] py-3 font-bold text-[#180b11] transition-transform hover:scale-105 disabled:cursor-not-allowed disabled:opacity-45" type="button" disabled={state.status === "LOBBY" && !bothCamerasReady} onClick={() => { if (state.status !== "LOBBY" || bothCamerasReady) dispatch({ type: state.status === "LOBBY" ? "START" : "RESET" }); }}>
+                    {state.status === "LOBBY" ? bothCamerasReady ? "Start" : "Waiting for cameras" : "Return to lobby"}
                   </button>
                 ) : (
-                  <p className="m-0 text-[0.7rem] tracking-[0.15em] text-[#b7a6d1] uppercase">Waiting for the host…</p>
+                  <p className="m-0 text-[0.7rem] tracking-[0.15em] text-[#b7a6d1] uppercase">{state.status === "LOBBY" && !bothCamerasReady ? "Grant camera access on both screens…" : "Waiting for the host…"}</p>
                 )}
               </div>
             )}

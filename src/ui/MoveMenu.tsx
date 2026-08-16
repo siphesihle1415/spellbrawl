@@ -21,7 +21,10 @@ const moves: Move[] = [
 
 function moveProgress(move: Move, state: GameState, playerId: PlayerId, now: number) {
   if (move.id === "firebolt" || move.id === "core") return Math.max(0, Math.min(1, (state.players[playerId].fistPrimedUntil - now) / 3_000));
-  if (move.id === "shield") return Math.max(0, Math.min(1, (state.players[playerId].shieldedUntil - now) / 1_200));
+  if (move.id === "shield") {
+    const sharedShieldDeadline = Math.max(...Object.values(state.players).map((player) => player.shieldedUntil));
+    return Math.max(0, Math.min(1, (sharedShieldDeadline - now) / 1_200));
+  }
   if (move.id === "armor") return state.armorBreaks / 2;
   return Math.min(1, state.recentGestures.filter((item) => now - item.at <= 2_000).length / move.recipe.length);
 }
@@ -30,7 +33,7 @@ function isActive(move: Move, state: GameState, progress: number) {
   if (progress > 0) return true;
   const effect = state.effect?.kind;
   return ((move.id === "firebolt" || move.id === "core") && effect === "FIREBOLT")
-    || (move.id === "shield" && effect === "SHIELD") || (move.id === "breath" && effect === "BARRIER")
+    || (move.id === "breath" && effect === "BARRIER")
     || (move.id === "armor" && effect === "ARMOR_BREAK")
     || ((move.id === "starfall" || move.id === "fusion") && effect === "STARFALL");
 }

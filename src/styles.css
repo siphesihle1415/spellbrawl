@@ -258,6 +258,7 @@
   justify-content: space-between;
   pointer-events: none;
 }
+.player-cameras.is-lobby { z-index: 20; }
 
 .hand-card {
   width: min(225px, 18vw);
