@@ -394,7 +394,7 @@ export function App() {
           ? <div className="arena-lite-bg" aria-hidden="true" />
           : <Arena state={arenaState} playerId={myPlayerId} enemyColor={arenaEncounter.color} now={now} onAssetLoaded={onAssetLoaded} onAssetError={onAssetError} />}
 
-        {!lightweightTestMode && <StartupLoader loadedAssets={loadedStartupAssetCount} totalAssets={STARTUP_ASSET_URLS.length} errorMessage={assetError} onRetry={retryAssetLoading} />}
+        {!lightweightTestMode && <StartupLoader loadedAssets={loadedStartupAssetCount} totalAssets={STARTUP_ASSET_URLS.length} />}
 
         <header className="game-header">
           <h1>Spell<span>Brawl</span></h1>
