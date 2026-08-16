@@ -1,13 +1,13 @@
 import { Float, PointerLockControls, Sparkles, useAnimations, useGLTF } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Component, Suspense, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from "react";
 import { AdditiveBlending, BackSide, LoopOnce, MathUtils, Mesh, Vector3, type AnimationAction, type AnimationClip, type Group, type Object3D, type PointLight } from "three";
+import { ARENA_SCENE_URL, arenaAssetUrlsForRound } from "../game/assets";
 import { activeMonsterModelUrl, DEFEAT_HOLD_MS, EMBERMAW_ANIMATED_TRANSFORM, EMBERMAW_ANIMATION_URLS, HEXWYRM_ANIMATED_TRANSFORM, HEXWYRM_ANIMATION_URLS, MONSTER_TRANSFORM, ROUND_ANIMATION_URLS, SHARD_WARDEN_ANIMATED_TRANSFORM, SHARD_WARDEN_ANIMATION_URLS } from "../game/monsters";
 import type { CombatEffect, GameState, PlayerId } from "../game/types";
 import { FireballEffect } from "./FireballEffect";
 import { playerCameraX } from "./playerCamera";
 
-const SCENE_MESH_URL = "/models/spellbrawl-three-rooms-open-lighting.glb";
 const SCENE_SCALE = 10.5;
 const ROOM_CAMERA_X: Record<GameState["round"], number> = {
   EMBERMAW: 0,
@@ -23,8 +23,6 @@ const CAMERA_SPAWN_Z = 0.35;
 const MONSTER_Z = -0.85;
 const PREVIEW_SPEED = 0.7;
 const PREVIEW_BOUNDS = { minX: -2, maxX: 2, minZ: -1.15, maxZ: 1.15 };
-export const criticalAssetCount = 4;
-
 function AssetReadiness({ assetUrl, onAssetLoaded }: { assetUrl: string; onAssetLoaded?: (assetUrl: string) => void }) {
   const asset = useGLTF(assetUrl);
 
@@ -34,7 +32,7 @@ function AssetReadiness({ assetUrl, onAssetLoaded }: { assetUrl: string; onAsset
 }
 
 function SceneMesh() {
-  const { scene } = useGLTF(SCENE_MESH_URL);
+  const { scene } = useGLTF(ARENA_SCENE_URL);
 
   useEffect(() => {
     scene.traverse((child: Object3D) => {
@@ -645,31 +643,33 @@ function AnimatedHexwyrm({ state, color }: { state: GameState; color: string }) 
   );
 }
 
-useGLTF.preload(SCENE_MESH_URL);
-useGLTF.preload(activeMonsterModelUrl("EMBERMAW"));
-useGLTF.preload(activeMonsterModelUrl("SHARD_WARDEN"));
-useGLTF.preload(activeMonsterModelUrl("HEXWYRM"));
-useGLTF.preload(EMBERMAW_ANIMATION_URLS.walking);
-useGLTF.preload(EMBERMAW_ANIMATION_URLS.zombieScream);
-useGLTF.preload(EMBERMAW_ANIMATION_URLS.jumpingPunch);
-useGLTF.preload(EMBERMAW_ANIMATION_URLS.fallingDown);
-useGLTF.preload(SHARD_WARDEN_ANIMATION_URLS.walking);
-useGLTF.preload(SHARD_WARDEN_ANIMATION_URLS.skill03);
-useGLTF.preload(SHARD_WARDEN_ANIMATION_URLS.tripleComboAttack);
-useGLTF.preload(SHARD_WARDEN_ANIMATION_URLS.shotInTheBackAndFall);
-useGLTF.preload(HEXWYRM_ANIMATION_URLS.walking);
-useGLTF.preload(HEXWYRM_ANIMATION_URLS.zombieScream);
-useGLTF.preload(HEXWYRM_ANIMATION_URLS.crouchChargeAndThrow);
-useGLTF.preload(HEXWYRM_ANIMATION_URLS.shotAndFallBackward);
+class ArenaErrorBoundary extends Component<{ children: ReactNode; resetKey: string; onError?: (error: Error) => void }, { error: Error | null }> {
+  state = { error: null } as { error: Error | null };
 
-const ALL_ANIMATION_URLS = Object.values(ROUND_ANIMATION_URLS).flat();
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
 
-export function Arena({ state, playerId, enemyColor, now = 0, preview = false, resetKey = 0, onAssetLoaded, onRoundAssetLoaded }: { state: GameState; playerId: PlayerId; enemyColor: string; now?: number; preview?: boolean; resetKey?: number; onAssetLoaded?: (assetUrl: string) => void; onRoundAssetLoaded?: (assetUrl: string) => void }) {
+  componentDidCatch(error: Error, _info: ErrorInfo) {
+    this.props.onError?.(error);
+  }
+
+  componentDidUpdate(previous: Readonly<{ resetKey: string }>) {
+    if (previous.resetKey !== this.props.resetKey && this.state.error) this.setState({ error: null });
+  }
+
+  render() {
+    return this.state.error ? <div className="absolute inset-0 bg-[#08060f]" aria-hidden="true" /> : this.props.children;
+  }
+}
+
+export function Arena({ state, playerId, enemyColor, now = 0, preview = false, resetKey = 0, onAssetLoaded, onAssetError }: { state: GameState; playerId: PlayerId; enemyColor: string; now?: number; preview?: boolean; resetKey?: number; onAssetLoaded?: (assetUrl: string) => void; onAssetError?: (error: Error) => void }) {
   const [visibleRound, setVisibleRound] = useState(state.round);
   const [emergeTick, setEmergeTick] = useState(0);
   const roomX = ROOM_CAMERA_X[visibleRound];
   const cameraX = playerCameraX(roomX, playerId, preview);
   const shielded = state.status === "PLAYING" && Object.values(state.players).some((player) => player.shieldedUntil > now);
+  const requiredAssets = arenaAssetUrlsForRound(state.round);
 
   useEffect(() => {
     if (visibleRound === state.round) return;
@@ -686,7 +686,8 @@ export function Arena({ state, playerId, enemyColor, now = 0, preview = false, r
   }, [state.round, visibleRound]);
 
   return (
-    <div className="absolute inset-0 h-full w-full" data-player-side={playerId === "PLAYER_A" ? "left" : "right"} data-camera-x={cameraX}>
+    <ArenaErrorBoundary resetKey={`${state.round}-${resetKey}`} onError={onAssetError}>
+      <div className="absolute inset-0 h-full w-full" data-player-side={playerId === "PLAYER_A" ? "left" : "right"} data-camera-x={cameraX}>
       <Canvas
         className="h-full w-full"
         dpr={[1, 1.5]}
@@ -697,21 +698,9 @@ export function Arena({ state, playerId, enemyColor, now = 0, preview = false, r
         <fog attach="fog" args={["#08060f", 10, 24]} />
         <ambientLight intensity={1} />
         <directionalLight position={[4, 7, 4]} intensity={2.8} castShadow color="#ffd7b0" />
-        <Suspense fallback={null}>
-          <AssetReadiness assetUrl={SCENE_MESH_URL} onAssetLoaded={onAssetLoaded} />
-        </Suspense>
-        <Suspense fallback={null}>
-          <AssetReadiness assetUrl={activeMonsterModelUrl("EMBERMAW")} onAssetLoaded={onAssetLoaded} />
-        </Suspense>
-        <Suspense fallback={null}>
-          <AssetReadiness assetUrl={activeMonsterModelUrl("SHARD_WARDEN")} onAssetLoaded={onAssetLoaded} />
-        </Suspense>
-        <Suspense fallback={null}>
-          <AssetReadiness assetUrl={activeMonsterModelUrl("HEXWYRM")} onAssetLoaded={onAssetLoaded} />
-        </Suspense>
-        {ALL_ANIMATION_URLS.map((assetUrl) => (
+        {requiredAssets.map((assetUrl) => (
           <Suspense key={assetUrl} fallback={null}>
-            <AssetReadiness assetUrl={assetUrl} onAssetLoaded={onRoundAssetLoaded} />
+            <AssetReadiness assetUrl={assetUrl} onAssetLoaded={onAssetLoaded} />
           </Suspense>
         ))}
         <Suspense fallback={null}>
@@ -732,6 +721,7 @@ export function Arena({ state, playerId, enemyColor, now = 0, preview = false, r
         {shielded && <CameraShield />}
         {preview && <PointerLockControls selector="#explore-scene" />}
       </Canvas>
-    </div>
+      </div>
+    </ArenaErrorBoundary>
   );
 }

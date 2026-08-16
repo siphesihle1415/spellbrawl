@@ -2,21 +2,20 @@ import { useEffect, useState } from "react";
 import { requestLoaderFacts } from "../director/LoaderFactsClient";
 import { fallbackLoaderFacts } from "../director/loaderFacts";
 
-export function StartupLoader({ loadedAssets, totalAssets }: { loadedAssets: number; totalAssets: number }) {
+export function StartupLoader({ loadedAssets, totalAssets, errorMessage, onRetry }: { loadedAssets: number; totalAssets: number; errorMessage?: string; onRetry: () => void }) {
   const [complete, setComplete] = useState(false);
   const [minimumElapsed, setMinimumElapsed] = useState(false);
+  const [loadingSlowly, setLoadingSlowly] = useState(false);
   const [facts, setFacts] = useState<string[]>([...fallbackLoaderFacts]);
   const [factIndex, setFactIndex] = useState(0);
   const [source, setSource] = useState<"ai" | "static" | "fallback">("fallback");
 
   useEffect(() => {
     const minimumDisplay = window.setTimeout(() => setMinimumElapsed(true), 900);
-    // A failed decoder, constrained GPU, or throttled model request must never trap the
-    // player behind the loading curtain; the Canvas continues resolving assets in place.
-    const maximumDisplay = window.setTimeout(() => setComplete(true), 15_000);
+    const slowLoadingNotice = window.setTimeout(() => setLoadingSlowly(true), 15_000);
     return () => {
       window.clearTimeout(minimumDisplay);
-      window.clearTimeout(maximumDisplay);
+      window.clearTimeout(slowLoadingNotice);
     };
   }, []);
 
@@ -39,8 +38,12 @@ export function StartupLoader({ loadedAssets, totalAssets }: { loadedAssets: num
 
   if (complete) return null;
 
-  const percentage = Math.round((loadedAssets / totalAssets) * 100);
-  const status = loadedAssets === 0 ? "Opening the rift…" : `Binding arena relics · ${loadedAssets} / ${totalAssets}`;
+  const percentage = totalAssets === 0 ? 100 : Math.round((loadedAssets / totalAssets) * 100);
+  const status = errorMessage
+    ? "The summoning was interrupted"
+    : loadedAssets === 0
+      ? "Opening the rift…"
+      : `Binding arena relics · ${loadedAssets} / ${totalAssets}`;
 
   return (
     <div className="absolute inset-0 z-50 grid place-items-center overflow-hidden bg-[#08060f] px-6 text-center">
@@ -57,6 +60,12 @@ export function StartupLoader({ loadedAssets, totalAssets }: { loadedAssets: num
           <span className="block h-full rounded-full bg-linear-to-r from-[#ff7658] via-[#bd74ff] to-[#6de6ff] transition-[width] duration-300" style={{ width: `${percentage}%` }} />
         </div>
         <p className="mt-3 text-xs tracking-[0.1em] text-[#b7a6d1] uppercase">{status}</p>
+        {(errorMessage || loadingSlowly) && (
+          <div className="mt-5 rounded-xl border border-[#68404f] bg-[#211018cc] px-4 py-3 text-sm text-[#f0c7cc]" role={errorMessage ? "alert" : "status"}>
+            <p className="m-0">{errorMessage ? "Some arena assets failed to load." : "The arena is taking longer than expected to download."}</p>
+            <button className="mt-3 cursor-pointer rounded-full border border-[#ff9a6a] bg-[#35161c] px-4 py-2 text-xs font-bold text-[#ffc0b7]" type="button" onClick={onRetry}>Retry loading</button>
+          </div>
+        )}
         <article className="mt-10 rounded-2xl border border-[#46335f] bg-[#110c19c9] px-6 py-5 text-left backdrop-blur-md">
           <p className="m-0 text-[0.65rem] tracking-[0.22em] text-[#9bdbff] uppercase">Director's field note {source === "ai" ? "· live" : ""}</p>
           <p className="mt-3 mb-0 min-h-12 text-sm leading-6 text-[#eee7fa]" aria-live="polite">{facts[factIndex]}</p>
