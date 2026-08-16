@@ -2,7 +2,7 @@ import { Float, PointerLockControls, Sparkles, useAnimations, useGLTF } from "@r
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { AdditiveBlending, BackSide, LoopOnce, MathUtils, Mesh, Vector3, type AnimationAction, type AnimationClip, type Group, type Object3D, type PointLight } from "three";
-import { activeMonsterModelUrl, EMBERMAW_ANIMATED_TRANSFORM, EMBERMAW_ANIMATION_URLS, HEXWYRM_ANIMATED_TRANSFORM, HEXWYRM_ANIMATION_URLS, MONSTER_TRANSFORM, ROUND_ANIMATION_URLS, SHARD_WARDEN_ANIMATED_TRANSFORM, SHARD_WARDEN_ANIMATION_URLS } from "../game/monsters";
+import { activeMonsterModelUrl, DEFEAT_HOLD_MS, EMBERMAW_ANIMATED_TRANSFORM, EMBERMAW_ANIMATION_URLS, HEXWYRM_ANIMATED_TRANSFORM, HEXWYRM_ANIMATION_URLS, MONSTER_TRANSFORM, ROUND_ANIMATION_URLS, SHARD_WARDEN_ANIMATED_TRANSFORM, SHARD_WARDEN_ANIMATION_URLS } from "../game/monsters";
 import type { CombatEffect, GameState, PlayerId } from "../game/types";
 import { FireballEffect } from "./FireballEffect";
 import { playerCameraX } from "./playerCamera";
@@ -52,18 +52,27 @@ function SceneMesh() {
   );
 }
 
-function RoomCamera({ round, playerId, preview, resetKey, effect }: { round: GameState["round"]; playerId: PlayerId; preview: boolean; resetKey: number; effect?: CombatEffect }) {
+function RoomCamera({ round, playerId, preview, resetKey, effect, emergeTick }: { round: GameState["round"]; playerId: PlayerId; preview: boolean; resetKey: number; effect?: CombatEffect; emergeTick: number }) {
   const { camera } = useThree();
   const light = useRef<PointLight>(null);
   const keys = useRef(new Set<string>());
   const direction = useRef(new Vector3());
   const right = useRef(new Vector3());
-  const shakeUntil = useRef(0);
+  const playerHitShakeUntil = useRef(0);
+  const emergeShakeUntil = useRef(0);
 
   useEffect(() => {
-    if (effect?.kind === "PLAYER_HIT") shakeUntil.current = performance.now() + 550;
-    if (effect?.kind === "ENEMY_EMERGE") shakeUntil.current = performance.now() + 1_250;
+    if (effect?.kind === "PLAYER_HIT") playerHitShakeUntil.current = performance.now() + 550;
   }, [effect?.id, effect?.kind]);
+
+  // `emergeTick` only bumps once the defeated monster's model has actually been swapped out for
+  // the next one (see Arena()'s visibleRound effect below) — not the instant `round` changes in
+  // game state, which happens well before the death animation has had a chance to play out.
+  // Starts at 0 and never goes back to 0, so this correctly no-ops on mount.
+  useEffect(() => {
+    if (emergeTick === 0) return;
+    emergeShakeUntil.current = performance.now() + 1_250;
+  }, [emergeTick]);
 
   useEffect(() => {
     camera.position.x = playerCameraX(ROOM_CAMERA_X[round], playerId, preview);
@@ -104,8 +113,11 @@ function RoomCamera({ round, playerId, preview, resetKey, effect }: { round: Gam
       camera.position.z = MathUtils.clamp(camera.position.z, PREVIEW_BOUNDS.minZ, PREVIEW_BOUNDS.maxZ);
     } else {
       const idleSway = Math.sin(clock.elapsedTime * 0.42) * 0.018;
-      const shaking = performance.now() < shakeUntil.current;
-      const magnitude = effect?.kind === "ENEMY_EMERGE" ? 0.026 : 0.014;
+      const now = performance.now();
+      const emergeShaking = now < emergeShakeUntil.current;
+      const hitShaking = now < playerHitShakeUntil.current;
+      const shaking = emergeShaking || hitShaking;
+      const magnitude = emergeShaking ? 0.026 : 0.014;
       const shakeX = shaking ? Math.sin(clock.elapsedTime * 71) * magnitude : 0;
       const shakeY = shaking ? Math.cos(clock.elapsedTime * 83) * magnitude * 0.7 : 0;
       camera.position.x = MathUtils.damp(camera.position.x, playerX + idleSway + shakeX, 8, delta);
@@ -286,8 +298,6 @@ const HEXWYRM_CLIP = {
 } as const;
 
 const CROSSFADE_SECONDS = 0.2;
-const EMBERMAW_DEFEAT_HOLD_MS = 2500;
-const SHARD_WARDEN_DEFEAT_HOLD_MS = 5500;
 const ROOT_BONE_NAME = "Hips";
 const EMBERMAW_REST_OFFSET_Z = 0.45;
 const EMBERMAW_REST_Z = MONSTER_Z + EMBERMAW_REST_OFFSET_Z;
@@ -652,27 +662,27 @@ useGLTF.preload(HEXWYRM_ANIMATION_URLS.zombieScream);
 useGLTF.preload(HEXWYRM_ANIMATION_URLS.crouchChargeAndThrow);
 useGLTF.preload(HEXWYRM_ANIMATION_URLS.shotAndFallBackward);
 
-const ANIMATED_DEFEAT_HOLD_MS: Partial<Record<GameState["round"], number>> = {
-  EMBERMAW: EMBERMAW_DEFEAT_HOLD_MS,
-  SHARD_WARDEN: SHARD_WARDEN_DEFEAT_HOLD_MS,
-};
-
 const ALL_ANIMATION_URLS = Object.values(ROUND_ANIMATION_URLS).flat();
 
 export function Arena({ state, playerId, enemyColor, now = 0, preview = false, resetKey = 0, onAssetLoaded, onRoundAssetLoaded }: { state: GameState; playerId: PlayerId; enemyColor: string; now?: number; preview?: boolean; resetKey?: number; onAssetLoaded?: (assetUrl: string) => void; onRoundAssetLoaded?: (assetUrl: string) => void }) {
-  const roomX = ROOM_CAMERA_X[state.round];
+  const [visibleRound, setVisibleRound] = useState(state.round);
+  const [emergeTick, setEmergeTick] = useState(0);
+  const roomX = ROOM_CAMERA_X[visibleRound];
   const cameraX = playerCameraX(roomX, playerId, preview);
   const shielded = state.status === "PLAYING" && Object.values(state.players).some((player) => player.shieldedUntil > now);
-  const [visibleRound, setVisibleRound] = useState(state.round);
 
   useEffect(() => {
     if (visibleRound === state.round) return;
-    const holdMs = ANIMATED_DEFEAT_HOLD_MS[visibleRound];
+    const holdMs = DEFEAT_HOLD_MS[visibleRound];
+    const reveal = () => {
+      setVisibleRound(state.round);
+      setEmergeTick((tick) => tick + 1);
+    };
     if (holdMs !== undefined) {
-      const timer = setTimeout(() => setVisibleRound(state.round), holdMs);
+      const timer = setTimeout(reveal, holdMs);
       return () => clearTimeout(timer);
     }
-    setVisibleRound(state.round);
+    reveal();
   }, [state.round, visibleRound]);
 
   return (
@@ -681,7 +691,7 @@ export function Arena({ state, playerId, enemyColor, now = 0, preview = false, r
         className="h-full w-full"
         dpr={[1, 1.5]}
         shadows
-        camera={{ position: [cameraX, ROOM_CAMERA_Y[state.round], CAMERA_SPAWN_Z], fov: 68 }}
+        camera={{ position: [cameraX, ROOM_CAMERA_Y[visibleRound], CAMERA_SPAWN_Z], fov: 68 }}
       >
         <color attach="background" args={["#08060f"]} />
         <fog attach="fog" args={["#08060f", 10, 24]} />
@@ -718,7 +728,7 @@ export function Arena({ state, playerId, enemyColor, now = 0, preview = false, r
           <PlayerPositions roomX={roomX} />
           {state.effect && <SpellEffect key={state.effect.id} roomX={roomX} round={state.round} effect={state.effect} />}
         </Suspense>
-        <RoomCamera round={state.round} playerId={playerId} preview={preview} resetKey={resetKey} effect={state.effect} />
+        <RoomCamera round={visibleRound} playerId={playerId} preview={preview} resetKey={resetKey} effect={state.effect} emergeTick={emergeTick} />
         {shielded && <CameraShield />}
         {preview && <PointerLockControls selector="#explore-scene" />}
       </Canvas>
