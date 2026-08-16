@@ -40,3 +40,15 @@ export const EMBERMAW_ANIMATED_TRANSFORM: { scale: number; position: [number, nu
   scale: 0.2,
   position: [0, 0.3, 0],
 };
+
+export const SHARD_WARDEN_ANIMATION_URLS = {
+  walking: "/models/monsters/shard-warden-walking.glb",
+  skill03: "/models/monsters/shard-warden-skill-03.glb",
+  tripleComboAttack: "/models/monsters/shard-warden-triple-combo-attack.glb",
+  shotInTheBackAndFall: "/models/monsters/shard-warden-shot-in-the-back-and-fall.glb",
+} as const;
+
+export const SHARD_WARDEN_ANIMATED_TRANSFORM: { scale: number; position: [number, number, number] } = {
+  scale: 0.2,
+  position: [0, 0.3, 0],
+};
