@@ -64,8 +64,18 @@ export function resolveRoundReveal(
 export function useRoundDisplay(state: GameState): RoundDisplayState {
   const [display, setDisplay] = useState<RoundDisplayState>(() => liveRoundDisplay(state));
   const previousRef = useRef(state);
+  const latestStateRef = useRef(state);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
+    latestStateRef.current = state;
+
+    // A hold is already in flight: `state` changing again here is some unrelated dispatch (a
+    // gesture, an enemy attack windup, ...) that happened to land mid-hold, not a new reveal.
+    // Leave the timer below running — it reads latestStateRef when it fires, so it still reveals
+    // whatever's freshest once the hold elapses, instead of the stale state from when it started.
+    if (timerRef.current !== undefined) return;
+
     const previous = previousRef.current;
     previousRef.current = state;
 
@@ -76,9 +86,14 @@ export function useRoundDisplay(state: GameState): RoundDisplayState {
     }
 
     setDisplay(reveal.frozen);
-    const timer = setTimeout(() => setDisplay(liveRoundDisplay(state)), reveal.holdMs);
-    return () => clearTimeout(timer);
+    timerRef.current = setTimeout(() => {
+      timerRef.current = undefined;
+      previousRef.current = latestStateRef.current;
+      setDisplay(liveRoundDisplay(latestStateRef.current));
+    }, reveal.holdMs);
   }, [state]);
+
+  useEffect(() => () => clearTimeout(timerRef.current), []);
 
   return display;
 }
