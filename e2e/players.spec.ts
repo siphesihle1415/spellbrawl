@@ -43,6 +43,7 @@ test("two players see the combat HUD, synced gestures, and shared session exit",
   await host.setViewportSize({ width: 390, height: 844 });
   await host.screenshot({ path: "test-results/mobile-combat.png", fullPage: true });
 
+  await host.keyboard.press("1");
   await host.keyboard.press("2");
   await expect(host.getByText("2 / 3 HP", { exact: false })).toBeVisible();
   await host.getByRole("button", { name: "Exit lobby" }).click();

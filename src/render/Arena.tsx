@@ -1,7 +1,7 @@
 import { Float, PointerLockControls, Sparkles, useGLTF } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Suspense, useEffect, useRef } from "react";
-import { AdditiveBlending, MathUtils, Mesh, Vector3, type Group, type Object3D, type PointLight } from "three";
+import { AdditiveBlending, DoubleSide, MathUtils, Mesh, Vector3, type Group, type Object3D, type PointLight } from "three";
 import { activeMonsterModelUrl, MONSTER_TRANSFORM } from "../game/monsters";
 import type { CombatEffect, GameState, PlayerId } from "../game/types";
 import { playerCameraX } from "./playerCamera";
@@ -131,6 +131,41 @@ function RoomCamera({ round, playerId, preview, resetKey, effect }: { round: Gam
   );
 }
 
+function PlayerShieldOrb({ color }: { color: string }) {
+  const orb = useRef<Group>(null);
+
+  useFrame(({ clock }) => {
+    if (!orb.current) return;
+    const pulse = 1 + Math.sin(clock.elapsedTime * 5.5) * 0.045;
+    orb.current.scale.setScalar(pulse);
+    orb.current.rotation.y += 0.008;
+    orb.current.rotation.z -= 0.004;
+  });
+
+  return (
+    <group ref={orb} position={[0, 0.24, 0]} renderOrder={20}>
+      <mesh>
+        <sphereGeometry args={[0.42, 32, 32]} />
+        <meshBasicMaterial color={color} transparent opacity={0.2} blending={AdditiveBlending} depthTest={false} depthWrite={false} side={DoubleSide} />
+      </mesh>
+      <mesh>
+        <sphereGeometry args={[0.43, 20, 20]} />
+        <meshBasicMaterial color="#a9f4ff" wireframe transparent opacity={0.34} blending={AdditiveBlending} depthTest={false} depthWrite={false} />
+      </mesh>
+      <mesh rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.44, 0.009, 8, 64]} />
+        <meshBasicMaterial color="#d7fbff" transparent opacity={0.8} blending={AdditiveBlending} depthTest={false} depthWrite={false} />
+      </mesh>
+      <mesh rotation={[0.3, 0, Math.PI / 2]}>
+        <torusGeometry args={[0.44, 0.007, 8, 64]} />
+        <meshBasicMaterial color={color} transparent opacity={0.65} blending={AdditiveBlending} depthTest={false} depthWrite={false} />
+      </mesh>
+      <Sparkles count={24} scale={0.72} size={1.8} speed={1.1} color="#bff8ff" />
+      <pointLight color={color} intensity={8} distance={1.8} />
+    </group>
+  );
+}
+
 function PlayerPositions({ roomX, shielded }: { roomX: number; shielded: boolean }) {
   return (
     <group>
@@ -140,12 +175,7 @@ function PlayerPositions({ roomX, shielded }: { roomX: number; shielded: boolean
             <ringGeometry args={[0.12, 0.16, 32]} />
             <meshBasicMaterial color={index === 0 ? "#ff7558" : "#51cfff"} transparent opacity={0.75} blending={AdditiveBlending} />
           </mesh>
-          {shielded && (
-            <mesh position={[0, 0.18, 0]}>
-              <sphereGeometry args={[0.25, 24, 24]} />
-              <meshPhysicalMaterial color="#54ff9b" transparent opacity={0.14} transmission={0.8} roughness={0.05} />
-            </mesh>
-          )}
+          {shielded && <PlayerShieldOrb color={index === 0 ? "#68dfff" : "#6c8dff"} />}
           <pointLight color={index === 0 ? "#ff7558" : "#51cfff"} intensity={shielded ? 5 : 2} distance={1.2} />
         </group>
       ))}
@@ -154,25 +184,47 @@ function PlayerPositions({ roomX, shielded }: { roomX: number; shielded: boolean
 }
 
 function ProjectileEffect({ roomX, effect }: { roomX: number; effect: CombatEffect }) {
-  const projectile = useRef<Mesh>(null);
+  const projectile = useRef<Group>(null);
   const started = useRef(performance.now());
-  const side = effect.playerId === "PLAYER_B" ? 0.52 : -0.52;
+  const side = effect.playerId === "PLAYER_B" ? 0.48 : -0.48;
   useFrame(() => {
     if (!projectile.current) return;
-    const progress = Math.min(1, (performance.now() - started.current) / 650);
-    projectile.current.position.z = MathUtils.lerp(-0.56, MONSTER_Z, progress);
-    projectile.current.position.x = MathUtils.lerp(roomX + side, roomX, progress);
-    projectile.current.scale.setScalar(progress < 0.86 ? 1 : 1 + (progress - 0.86) * 9);
+    const progress = Math.min(1, (performance.now() - started.current) / 1_050);
+    const eased = 1 - Math.pow(1 - progress, 2);
+    projectile.current.position.z = MathUtils.lerp(-0.08, MONSTER_Z + 0.04, eased);
+    projectile.current.position.x = MathUtils.lerp(roomX + side, roomX, eased);
+    projectile.current.position.y = 0.5 + Math.sin(progress * Math.PI) * 0.15;
+    projectile.current.rotation.z += 0.09;
+    const impactScale = progress < 0.82
+      ? MathUtils.lerp(0.55, 1.15, Math.min(1, progress * 2.5))
+      : 1.15 + ((progress - 0.82) / 0.18) * 3.5;
+    projectile.current.scale.setScalar(impactScale);
     if (progress === 1) projectile.current.visible = false;
   });
   return (
-    <group>
-      <mesh ref={projectile} position={[roomX + side, 0.58, -0.56]}>
-        <sphereGeometry args={[0.075, 18, 18]} />
-        <meshBasicMaterial color="#ff6b24" blending={AdditiveBlending} />
-        <pointLight color="#ff4b18" intensity={12} distance={2} />
+    <group ref={projectile} position={[roomX + side, 0.5, -0.08]} renderOrder={30}>
+      <mesh>
+        <icosahedronGeometry args={[0.1, 2]} />
+        <meshBasicMaterial color="#fff2a2" blending={AdditiveBlending} depthTest={false} depthWrite={false} />
       </mesh>
-      <Sparkles count={38} position={[roomX, 0.58, -0.72]} scale={[0.7, 0.35, 0.45]} size={2.5} speed={2} color="#ff8a38" />
+      <mesh>
+        <sphereGeometry args={[0.145, 20, 20]} />
+        <meshBasicMaterial color="#ff4b0b" transparent opacity={0.68} blending={AdditiveBlending} depthTest={false} depthWrite={false} />
+      </mesh>
+      <mesh rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.18, 0.018, 8, 32]} />
+        <meshBasicMaterial color="#ffb229" transparent opacity={0.9} blending={AdditiveBlending} depthTest={false} depthWrite={false} />
+      </mesh>
+      <mesh position={[0, 0, 0.12]} scale={0.72}>
+        <sphereGeometry args={[0.12, 14, 14]} />
+        <meshBasicMaterial color="#ff6518" transparent opacity={0.55} blending={AdditiveBlending} depthTest={false} depthWrite={false} />
+      </mesh>
+      <mesh position={[0, 0, 0.23]} scale={0.46}>
+        <sphereGeometry args={[0.12, 12, 12]} />
+        <meshBasicMaterial color="#ffb229" transparent opacity={0.42} blending={AdditiveBlending} depthTest={false} depthWrite={false} />
+      </mesh>
+      <Sparkles count={55} scale={[0.55, 0.55, 0.95]} size={3.2} speed={3.2} color="#ff8a38" />
+      <pointLight color="#ff4b18" intensity={24} distance={3.2} />
     </group>
   );
 }
