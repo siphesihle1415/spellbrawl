@@ -6,8 +6,15 @@ const started = () => gameReducer(initialGameState(), { type: "START" });
 describe("gameReducer", () => {
   it("casts Firebolt after FIST then OPEN_PALM", () => {
     const primed = gameReducer(started(), { type: "GESTURE", playerId: "PLAYER_A", gesture: "FIST", at: 100 });
-    const hit = gameReducer(primed, { type: "GESTURE", playerId: "PLAYER_A", gesture: "OPEN_PALM", at: 500 });
+    expect(primed.message).toContain("Firebolt charged");
+    const hit = gameReducer(primed, { type: "GESTURE", playerId: "PLAYER_A", gesture: "OPEN_PALM", at: 2_900 });
     expect(hit.enemyHp).toBe(2);
+    expect(hit.effect?.kind).toBe("FIREBOLT");
+    expect(hit.players.PLAYER_A.shieldedUntil).toBe(0);
+    expect(hit.players.PLAYER_A.fistPrimedUntil).toBe(0);
+
+    const shielded = gameReducer(hit, { type: "GESTURE", playerId: "PLAYER_A", gesture: "OPEN_PALM", at: 3_000 });
+    expect(shielded.effect?.kind).toBe("SHIELD");
   });
 
   it("blocks an enemy attack with an open palm", () => {
@@ -69,7 +76,7 @@ describe("gameReducer", () => {
     const cleared = gameReducer(gesturing, { type: "GESTURE_END", playerId: "PLAYER_A" });
 
     expect(cleared.players.PLAYER_A.lastGesture).toBeUndefined();
-    expect(cleared.players.PLAYER_A.fistPrimedUntil).toBe(1_600);
+    expect(cleared.players.PLAYER_A.fistPrimedUntil).toBe(3_100);
   });
 
   it("adopts a synced state verbatim", () => {

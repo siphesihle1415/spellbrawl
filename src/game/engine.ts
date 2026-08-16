@@ -2,6 +2,7 @@ import { encounters } from "./config";
 import type { GameAction, GameState, Gesture, PlayerId, TimedGesture } from "./types";
 
 const COMBO_WINDOW = 1_500;
+const FIREBOLT_WINDOW = 3_000;
 const SHIELD_WINDOW = 1_200;
 const MEMORY_WINDOW = 2_000;
 
@@ -81,6 +82,7 @@ const handleBossGesture = (
   gesture: Gesture,
   at: number,
   history: TimedGesture[],
+  firebolt: boolean,
 ): GameState => {
   if (state.phase === "BREATH_ATTACK") {
     if (gesture === "OPEN_PALM" && hasGesture(history, "OPEN_PALM", at - 1_000, playerId)) {
@@ -100,7 +102,7 @@ const handleBossGesture = (
       : withEffect({ ...state, armorBreaks, recentGestures: [], message: "Armor shattered once. Repeat POINT + PINCH!" }, "ARMOR_BREAK", playerId);
   }
 
-  if (state.phase === "CORE_PHASE" && gesture === "OPEN_PALM" && state.players[playerId].fistPrimedUntil >= at) {
+  if (state.phase === "CORE_PHASE" && firebolt) {
     return { ...state, phase: "FUSION_FINISHER", recentGestures: [], message: "Bind the star: Player 1 holds FIST, Player 2 PINCHES, then Player 1 opens their palm." };
   }
 
@@ -147,22 +149,23 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
   const { playerId, gesture, at } = action;
   const history = remember(state.recentGestures, playerId, gesture, at);
   const player = state.players[playerId];
+  const firebolt = gesture === "OPEN_PALM" && player.fistPrimedUntil >= at;
   const players = {
     ...state.players,
     [playerId]: {
       ...player,
       lastGesture: gesture,
-      shieldedUntil: gesture === "OPEN_PALM" ? at + SHIELD_WINDOW : player.shieldedUntil,
-      fistPrimedUntil: gesture === "FIST" ? at + COMBO_WINDOW : player.fistPrimedUntil,
+      shieldedUntil: gesture === "OPEN_PALM" && !firebolt ? at + SHIELD_WINDOW : player.shieldedUntil,
+      fistPrimedUntil: gesture === "FIST" ? at + FIREBOLT_WINDOW : firebolt ? 0 : player.fistPrimedUntil,
     },
   };
   const next = { ...state, players, recentGestures: history };
 
-  if (state.round === "HEXWYRM") return handleBossGesture(next, playerId, gesture, at, history);
+  if (state.round === "HEXWYRM") return handleBossGesture(next, playerId, gesture, at, history, firebolt);
 
-  const firebolt = gesture === "OPEN_PALM" && player.fistPrimedUntil >= at;
   if (!firebolt) {
     if (gesture === "OPEN_PALM") return withEffect({ ...next, message: "Arcane shield raised." }, "SHIELD", playerId);
+    if (gesture === "FIST") return { ...next, message: "Firebolt charged — open your palm to release!" };
     return next;
   }
 

@@ -10,7 +10,7 @@ type Move = {
 };
 
 const moves: Move[] = [
-  { id: "firebolt", name: "Firebolt", icon: "☄", category: "Damage", tone: "#ff710c", recipe: [{ gesture: "FIST" }, { gesture: "OPEN_PALM" }], timer: "≤ 1.5s\ncombo window", description: "Deals 1 damage to the current enemy.", available: (s) => s.round !== "HEXWYRM" || s.phase === "CORE_PHASE" },
+  { id: "firebolt", name: "Firebolt", icon: "☄", category: "Damage", tone: "#ff710c", recipe: [{ gesture: "FIST" }, { gesture: "OPEN_PALM" }], timer: "≤ 3s\nrelease window", description: "Make a FIST to charge, then OPEN PALM within 3 seconds to launch at the enemy.", available: (s) => s.round !== "HEXWYRM" || s.phase === "CORE_PHASE" },
   { id: "shield", name: "Arcane Shield", icon: "♢", category: "Defense", tone: "#43a5ff", recipe: [{ gesture: "OPEN_PALM" }], timer: "1.2s\nshield window", description: "Blocks the next enemy attack. Any one player shielding protects the shared HP pool.", available: (s) => s.round !== "HEXWYRM" },
   { id: "starfall", name: "Starfall", icon: "✦", category: "Special move", tone: "#e957f2", recipe: [{ gesture: "FIST", role: "P1", label: "Hold fist" }, { gesture: "PINCH", role: "P2" }, { gesture: "OPEN_PALM", role: "P1" }], description: "Player 1 holds FIST, Player 2 performs PINCH, then Player 1 performs OPEN_PALM.", available: (s) => s.phase === "FUSION_FINISHER" },
   { id: "breath", name: "Breath Attack", icon: "≋", category: "Special move", tone: "#27d8e7", recipe: [{ gesture: "OPEN_PALM", role: "P1" }, { gesture: "OPEN_PALM", role: "P2" }], timer: "≤ 1s\ntogether", description: "Both players use OPEN_PALM within ~1s to create a co-op barrier.", available: (s) => s.phase === "BREATH_ATTACK" },
@@ -20,7 +20,7 @@ const moves: Move[] = [
 ];
 
 function moveProgress(move: Move, state: GameState, playerId: PlayerId, now: number) {
-  if (move.id === "firebolt" || move.id === "core") return Math.max(0, Math.min(1, (state.players[playerId].fistPrimedUntil - now) / 1_500));
+  if (move.id === "firebolt" || move.id === "core") return Math.max(0, Math.min(1, (state.players[playerId].fistPrimedUntil - now) / 3_000));
   if (move.id === "shield") return Math.max(0, Math.min(1, (state.players[playerId].shieldedUntil - now) / 1_200));
   if (move.id === "armor") return state.armorBreaks / 2;
   return Math.min(1, state.recentGestures.filter((item) => now - item.at <= 2_000).length / move.recipe.length);

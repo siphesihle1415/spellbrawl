@@ -35,7 +35,7 @@ test("two players see the combat HUD, synced gestures, and shared session exit",
   await expect(host.locator(".compact-spell.is-active")).not.toHaveCount(0);
   await host.screenshot({ path: "test-results/firebolt-primed.png", fullPage: true });
   await host.getByRole("button", { name: "Open move help" }).click();
-  await expect(host.getByRole("dialog", { name: "Move help" })).toContainText("Deals 1 damage to the current enemy.");
+  await expect(host.getByRole("dialog", { name: "Move help" })).toContainText("OPEN PALM within 3 seconds");
   await host.screenshot({ path: "test-results/move-help.png", fullPage: true });
   await host.getByRole("button", { name: "Close move help" }).click();
   await host.keyboard.up("1");
