@@ -1,4 +1,4 @@
-# POC Validation and Demo Checklist
+# Game Validation and Demo Checklist
 
 ## Functional checks
 
@@ -6,7 +6,7 @@
 - [ ] Player can create a room and receive a short room code.
 - [ ] Second player can join and both identities are visible.
 - [ ] Webcam permission denial produces a clear fallback message.
-- [ ] `FIST`, `OPEN_PALM`, `POINT`, `PINCH`, and `HANDS_APART` show stable local feedback.
+- [ ] `FIST`, `OPEN_PALM`, `POINT`, and `PINCH` show stable local feedback.
 - [ ] A confirmed `FIST → OPEN_PALM` casts Firebolt exactly once.
 - [ ] `OPEN_PALM` blocks the enemy attack while active.
 - [ ] Player HP, enemy HP, damage, defeat, victory, and reset converge on both clients.
@@ -38,5 +38,5 @@
 4. Coordinate Shard Warden shield break, then defeat it.
 5. Block Hexwyrm's breath together.
 6. Perform two armor breaks.
-7. Hold `FIST`, use `HANDS_APART`, then thrust to trigger Starfall.
+7. Player 1 holds `FIST`, Player 2 uses `PINCH`, then Player 1 raises `OPEN_PALM` to trigger Starfall.
 8. If AI or webcam tracking fails, use the default encounter config and the documented gesture fallback/debug controls.

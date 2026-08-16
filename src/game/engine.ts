@@ -2,6 +2,7 @@ import { encounters } from "./config";
 import type { GameAction, GameState, Gesture, PlayerId, TimedGesture } from "./types";
 
 const COMBO_WINDOW = 1_500;
+const FIREBOLT_WINDOW = 3_000;
 // A raised palm must still be "shielded" when the host's ENEMY_ATTACK resolves. For a remote
 // guest, the windup cue arrives after network latency and their palm-raise travels back over
 // the same link before the host timestamps it — that round trip eats directly into their
@@ -9,8 +10,17 @@ const COMBO_WINDOW = 1_500;
 // the longest attack's impact delay (Hexwyrm, 3,120ms — see ATTACK_IMPACT_DELAY_MS in
 // game/monsters.ts) so a guest who reacts the instant they see the cue stays covered even on a
 // laggy connection, instead of losing the block purely to latency they can't control.
-const SHIELD_WINDOW = 3_500;
+export const SHIELD_WINDOW_MS = 3_500;
 const MEMORY_WINDOW = 2_000;
+
+const withEffect = (
+  state: GameState,
+  kind: NonNullable<GameState["effect"]>["kind"],
+  playerId?: PlayerId,
+): GameState => ({
+  ...state,
+  effect: { id: (state.effect?.id ?? 0) + 1, kind, playerId },
+});
 
 const emptyPlayers = () => ({
   PLAYER_A: { shieldedUntil: 0, fistPrimedUntil: 0 },
@@ -50,7 +60,7 @@ const hasGesture = (
 
 const enterRound = (state: GameState, round: "SHARD_WARDEN" | "HEXWYRM"): GameState => {
   const encounter = encounters[round];
-  return {
+  return withEffect({
     ...state,
     round,
     roundNumber: round === "SHARD_WARDEN" ? 2 : 3,
@@ -63,15 +73,15 @@ const enterRound = (state: GameState, round: "SHARD_WARDEN" | "HEXWYRM"): GameSt
     message: round === "SHARD_WARDEN"
       ? "The Warden is shielded: one POINTS while the other casts Firebolt."
       : "The Hexwyrm inhales: both players raise OPEN PALM!",
-  };
+  }, "ENEMY_EMERGE");
 };
 
-const applyDamage = (state: GameState, damage: number): GameState => {
+const applyDamage = (state: GameState, damage: number, playerId?: PlayerId): GameState => {
   const enemyHp = Math.max(0, state.enemyHp - damage);
-  if (enemyHp > 0) return { ...state, enemyHp, message: "Firebolt strikes true!" };
+  if (enemyHp > 0) return withEffect({ ...state, enemyHp, message: "Firebolt strikes true!" }, "FIREBOLT", playerId);
   if (state.round === "EMBERMAW") return enterRound(state, "SHARD_WARDEN");
   if (state.round === "SHARD_WARDEN") return enterRound(state, "HEXWYRM");
-  return { ...state, enemyHp: 0, status: "VICTORY", message: "STARFALL! The Hexwyrm is undone." };
+  return withEffect({ ...state, enemyHp: 0, status: "VICTORY", message: "STARFALL! The Hexwyrm is undone." }, "STARFALL", playerId);
 };
 
 const handleBossGesture = (
@@ -80,10 +90,11 @@ const handleBossGesture = (
   gesture: Gesture,
   at: number,
   history: TimedGesture[],
+  firebolt: boolean,
 ): GameState => {
   if (state.phase === "BREATH_ATTACK") {
     if (gesture === "OPEN_PALM" && hasGesture(history, "OPEN_PALM", at - 1_000, playerId)) {
-      return { ...state, phase: "ARMOR_PHASE", recentGestures: [], message: "Co-op barrier! Break the armor with POINT + PINCH." };
+      return withEffect({ ...state, phase: "ARMOR_PHASE", recentGestures: [], message: "Co-op barrier! Break the armor with POINT + PINCH." }, "BARRIER");
     }
     return { ...state, recentGestures: history, message: "Both palms must rise within one second." };
   }
@@ -95,23 +106,23 @@ const handleBossGesture = (
     if (!pairComplete) return { ...state, recentGestures: history };
     const armorBreaks = state.armorBreaks + 1;
     return armorBreaks >= 2
-      ? { ...state, phase: "CORE_PHASE", armorBreaks, recentGestures: [], message: "Core exposed! Strike it with Firebolt." }
-      : { ...state, armorBreaks, recentGestures: [], message: "Armor shattered once. Repeat POINT + PINCH!" };
+      ? withEffect({ ...state, phase: "CORE_PHASE", armorBreaks, recentGestures: [], message: "Core exposed! Strike it with Firebolt." }, "ARMOR_BREAK", playerId)
+      : withEffect({ ...state, armorBreaks, recentGestures: [], message: "Armor shattered once. Repeat POINT + PINCH!" }, "ARMOR_BREAK", playerId);
   }
 
-  if (state.phase === "CORE_PHASE" && gesture === "OPEN_PALM" && state.players[playerId].fistPrimedUntil >= at) {
-    return { ...state, phase: "FUSION_FINISHER", recentGestures: [], message: "Bind the star: A holds FIST, B tears the rift with HANDS APART." };
+  if (state.phase === "CORE_PHASE" && firebolt) {
+    return { ...state, phase: "FUSION_FINISHER", recentGestures: [], message: "Bind the star: Player 1 holds FIST, Player 2 PINCHES, then Player 1 opens their palm." };
   }
 
   if (state.phase === "FUSION_FINISHER") {
     const hasAFist = gesture === "FIST" && playerId === "PLAYER_A"
       ? true
       : hasGesture(history, "FIST", at - 2_000) && history.some((item) => item.playerId === "PLAYER_A" && item.gesture === "FIST");
-    const hasBRift = gesture === "HANDS_APART" && playerId === "PLAYER_B"
+    const hasBRift = gesture === "PINCH" && playerId === "PLAYER_B"
       ? true
-      : history.some((item) => item.playerId === "PLAYER_B" && item.gesture === "HANDS_APART" && item.at >= at - 2_000);
+      : history.some((item) => item.playerId === "PLAYER_B" && item.gesture === "PINCH" && item.at >= at - 2_000);
     if (playerId === "PLAYER_A" && gesture === "OPEN_PALM" && hasAFist && hasBRift) {
-      return applyDamage({ ...state, recentGestures: history }, state.enemyHp);
+      return applyDamage({ ...state, recentGestures: history }, state.enemyHp, playerId);
     }
     return { ...state, recentGestures: history };
   }
@@ -123,6 +134,15 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
   if (action.type === "RESET") return initialGameState();
   if (action.type === "START") return { ...initialGameState(), status: "PLAYING", message: "Embermaw attacks! Cast FIST → OPEN PALM." };
   if (action.type === "SYNC") return action.state;
+  if (action.type === "GESTURE_END") {
+    return {
+      ...state,
+      players: {
+        ...state.players,
+        [action.playerId]: { ...state.players[action.playerId], lastGesture: undefined },
+      },
+    };
+  }
   if (state.status !== "PLAYING") return state;
 
   if (action.type === "ENEMY_ATTACK_WINDUP") {
@@ -131,32 +151,33 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
   if (action.type === "ENEMY_ATTACK") {
     const protectedPlayers = Object.values(state.players).filter((player) => player.shieldedUntil >= action.at).length;
-    if (protectedPlayers > 0) return { ...state, message: "Arcane shield absorbs the attack." };
+    if (protectedPlayers > 0) return withEffect({ ...state, message: "Arcane shield absorbs the attack." }, "SHIELD");
     const sharedHp = Math.max(0, state.sharedHp - 1);
     return sharedHp === 0
-      ? { ...state, sharedHp, status: "DEFEAT", message: "The link is broken. Regroup and try again." }
-      : { ...state, sharedHp, message: "Enemy attack lands!" };
+      ? withEffect({ ...state, sharedHp, status: "DEFEAT", message: "The link is broken. Regroup and try again." }, "PLAYER_HIT")
+      : withEffect({ ...state, sharedHp, message: "Enemy attack lands! Raise an OPEN PALM to defend." }, "PLAYER_HIT");
   }
 
   const { playerId, gesture, at } = action;
   const history = remember(state.recentGestures, playerId, gesture, at);
   const player = state.players[playerId];
+  const firebolt = gesture === "OPEN_PALM" && player.fistPrimedUntil >= at;
   const players = {
     ...state.players,
     [playerId]: {
       ...player,
       lastGesture: gesture,
-      shieldedUntil: gesture === "OPEN_PALM" ? at + SHIELD_WINDOW : player.shieldedUntil,
-      fistPrimedUntil: gesture === "FIST" ? at + COMBO_WINDOW : player.fistPrimedUntil,
+      shieldedUntil: gesture === "OPEN_PALM" && !firebolt ? at + SHIELD_WINDOW_MS : player.shieldedUntil,
+      fistPrimedUntil: gesture === "FIST" ? at + FIREBOLT_WINDOW : firebolt ? 0 : player.fistPrimedUntil,
     },
   };
   const next = { ...state, players, recentGestures: history };
 
-  if (state.round === "HEXWYRM") return handleBossGesture(next, playerId, gesture, at, history);
+  if (state.round === "HEXWYRM") return handleBossGesture(next, playerId, gesture, at, history, firebolt);
 
-  const firebolt = gesture === "OPEN_PALM" && player.fistPrimedUntil >= at;
   if (!firebolt) {
-    if (gesture === "OPEN_PALM") return { ...next, message: "Arcane shield raised." };
+    if (gesture === "OPEN_PALM") return withEffect({ ...next, message: "Arcane shield raised." }, "SHIELD", playerId);
+    if (gesture === "FIST") return { ...next, message: "Firebolt charged — open your palm to release!" };
     return next;
   }
 
@@ -164,8 +185,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     if (!hasGesture(history, "POINT", at - COMBO_WINDOW, playerId)) {
       return { ...next, message: "The Firebolt scatters. Another player must POINT first." };
     }
-    return { ...next, phase: "ACTIVE", recentGestures: [], message: "Shield broken! The Warden's core is exposed." };
+    return withEffect({ ...next, phase: "ACTIVE", recentGestures: [], message: "Shield broken! The Warden's core is exposed." }, "ARMOR_BREAK", playerId);
   }
 
-  return applyDamage(next, 1);
+  return applyDamage(next, 1, playerId);
 }

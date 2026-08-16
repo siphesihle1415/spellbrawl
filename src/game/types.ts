@@ -4,8 +4,7 @@ export type Gesture =
   | "FIST"
   | "OPEN_PALM"
   | "POINT"
-  | "PINCH"
-  | "HANDS_APART";
+  | "PINCH";
 
 export type RoundId = "EMBERMAW" | "SHARD_WARDEN" | "HEXWYRM";
 
@@ -31,6 +30,21 @@ export type PlayerState = {
   fistPrimedUntil: number;
 };
 
+export type CombatEffectKind =
+  | "FIREBOLT"
+  | "SHIELD"
+  | "BARRIER"
+  | "ARMOR_BREAK"
+  | "STARFALL"
+  | "PLAYER_HIT"
+  | "ENEMY_EMERGE";
+
+export type CombatEffect = {
+  id: number;
+  kind: CombatEffectKind;
+  playerId?: PlayerId;
+};
+
 export type GameState = {
   status: GameStatus;
   round: RoundId;
@@ -44,6 +58,7 @@ export type GameState = {
   players: Record<PlayerId, PlayerState>;
   recentGestures: TimedGesture[];
   message: string;
+  effect?: CombatEffect;
 };
 
 export type GameAction =
@@ -51,5 +66,6 @@ export type GameAction =
   | { type: "RESET" }
   | { type: "SYNC"; state: GameState }
   | { type: "GESTURE"; playerId: PlayerId; gesture: Gesture; at: number }
+  | { type: "GESTURE_END"; playerId: PlayerId }
   | { type: "ENEMY_ATTACK_WINDUP"; at: number }
   | { type: "ENEMY_ATTACK"; at: number };

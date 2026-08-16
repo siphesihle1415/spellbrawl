@@ -2,7 +2,7 @@
 
 A two-player co-op browser game where players cast spells with hand gestures, coordinate against three enemies, and finish the Hexwyrm with a fusion attack.
 
-## Run the POC
+## Run the game
 
 ```bash
 npm install
@@ -19,12 +19,13 @@ Open port `8888`, not the Vite port, so calls to `/.netlify/functions/director` 
 
 The initial implementation includes the deterministic three-round combat loop, a React Three Fiber arena, camera-based MediaPipe gesture tracking without a visible webcam feed, keyboard/debug gesture controls, and a multiplayer integration boundary.
 
-Use keys `1`–`5` for Player A and `Shift+1`–`Shift+5` for the simulated Player B. The keys map to `FIST`, `OPEN_PALM`, `POINT`, `PINCH`, and `HANDS_APART`.
+Each player can use keys `1`–`4` for local testing. They map to `FIST`, `OPEN_PALM`, `POINT`, and `PINCH`; gestures are attributed to that browser's assigned player.
 
 ## Commands
 
 ```bash
 npm test
+npm run test:e2e
 npm run build
 ```
 
@@ -57,4 +58,4 @@ Repository-level CI secrets can be synchronized from a local ignored `.env` file
 
 The repository includes `netlify.toml`. Netlify must run `npm run build` and publish `dist`; publishing the repository root will not serve the compiled Vite application.
 
-See [the POC documentation](poc/README.md) for the scope, architecture, implementation plan, contracts, and validation checklist.
+See [the game documentation](docs/README.md) for the scope, architecture, implementation plan, contracts, and validation checklist.

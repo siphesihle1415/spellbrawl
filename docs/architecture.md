@@ -1,4 +1,4 @@
-# POC Architecture
+# Game Architecture
 
 ## Overview
 
@@ -43,7 +43,7 @@ worker/RoomDurableObject.ts     two-player WebSocket room
 worker/roomLogic.ts             identity and host-authority enforcement
 ```
 
-The room service relays or authoritatively processes semantic events, depending on the selected multiplayer provider. The POC must ensure that both clients converge on the same encounter state; server authority is preferred for damage, phase changes, and victory.
+The room service relays or authoritatively processes semantic events, depending on the selected multiplayer provider. The game must ensure that both clients converge on the same encounter state; server authority is preferred for damage, phase changes, and victory.
 
 ## Runtime boundaries
 

@@ -1,5 +1,5 @@
 {
-  "name": "spellbrawl-poc",
+  "name": "spellbrawl",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "deploy:worker": "wrangler deploy",
     "test": "vitest run",
+    "test:e2e": "playwright test",
     "assets:compress-monsters": "node scripts/compress-monsters.mjs",
     "assets:compress-embermaw-animations": "node scripts/compress-embermaw-animations.mjs",
     "assets:compress-shardbound-colossus-animations": "node scripts/compress-shardbound-colossus-animations.mjs",

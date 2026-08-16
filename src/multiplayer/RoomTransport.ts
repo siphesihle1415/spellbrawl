@@ -5,9 +5,12 @@ import type { RunConfiguration } from "../director/schema";
 export type SemanticRoomEvent =
   | { type: "ROLE_ASSIGNED"; playerId: PlayerId; isHost: boolean }
   | { type: "PLAYER_READY"; playerId: PlayerId }
+  | { type: "CAMERA_READY"; playerId: PlayerId; ready: boolean }
   | { type: "GESTURE"; playerId: PlayerId; gesture: Gesture; at: number }
-  | { type: "STATE_SYNC"; state: GameState }
+  | { type: "GESTURE_END"; playerId: PlayerId }
+  | { type: "STATE_SYNC"; state: GameState; sentAt: number }
   | { type: "DIRECTOR_SYNC"; configuration: RunConfiguration; source: DirectorSource }
+  | { type: "SESSION_END"; playerId: PlayerId }
   | { type: "ROUND_READY"; playerId: PlayerId; round: RoundId }
   | { type: "PEER_LEFT" };
 

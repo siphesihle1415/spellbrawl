@@ -11,7 +11,13 @@ export function StartupLoader({ loadedAssets, totalAssets }: { loadedAssets: num
 
   useEffect(() => {
     const minimumDisplay = window.setTimeout(() => setMinimumElapsed(true), 900);
-    return () => window.clearTimeout(minimumDisplay);
+    // A failed decoder, constrained GPU, or throttled model request must never trap the
+    // player behind the loading curtain; the Canvas continues resolving assets in place.
+    const maximumDisplay = window.setTimeout(() => setComplete(true), 15_000);
+    return () => {
+      window.clearTimeout(minimumDisplay);
+      window.clearTimeout(maximumDisplay);
+    };
   }, []);
 
   useEffect(() => {

@@ -2,14 +2,17 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { directMessage, encounterForRound } from "./director/defaultConfig";
 import { useRunConfiguration } from "./director/useRunConfiguration";
 import { gameReducer, initialGameState } from "./game/engine";
+import { rebaseSyncedState } from "./game/syncClock";
 import { ATTACK_IMPACT_DELAY_MS, ROUND_ANIMATION_URLS } from "./game/monsters";
 import type { Gesture, PlayerId, RoundId } from "./game/types";
 import { WebcamPreview } from "./hand/WebcamPreview";
 import { CloudflareRoomTransport } from "./multiplayer/CloudflareRoomTransport";
 import type { ConnectionState } from "./multiplayer/RoomTransport";
 import { Arena, criticalAssetCount } from "./render/Arena";
-import { GestureControls } from "./ui/GestureControls";
+import { MoveMenu } from "./ui/MoveMenu";
+import { RemoteHandPreview } from "./ui/RemoteHandPreview";
 import { RoomGate } from "./ui/RoomGate";
+import { SpellPlayground } from "./ui/SpellPlayground";
 import { RoundLoader } from "./ui/RoundLoader";
 import { StartupLoader } from "./ui/StartupLoader";
 
@@ -18,7 +21,6 @@ const keyGestures: Record<string, Gesture> = {
   "2": "OPEN_PALM",
   "3": "POINT",
   "4": "PINCH",
-  "5": "HANDS_APART",
 };
 
 const previewRooms: { round: RoundId; label: string }[] = [
@@ -27,15 +29,22 @@ const previewRooms: { round: RoundId; label: string }[] = [
   { round: "HEXWYRM", label: "Left" },
 ];
 
+const lightweightTestMode = new URLSearchParams(window.location.search).has("lite");
+
 export function App() {
   const [state, dispatch] = useReducer(gameReducer, undefined, initialGameState);
   const [transport] = useState(() => new CloudflareRoomTransport());
   const [connection, setConnection] = useState<ConnectionState>({ status: "IDLE" });
   const [connectError, setConnectError] = useState("");
   const [isPreviewing, setIsPreviewing] = useState(false);
+  const [isSpellPlayground, setIsSpellPlayground] = useState(false);
+  const [playgroundState, dispatchPlayground] = useReducer(gameReducer, undefined, () => gameReducer(initialGameState(), { type: "START" }));
   const [previewRound, setPreviewRound] = useState<RoundId>("EMBERMAW");
   const [previewResetKey, setPreviewResetKey] = useState(0);
   const [loadedAssets, setLoadedAssets] = useState<Set<string>>(() => new Set());
+  const [now, setNow] = useState(0);
+  const [cameraReadyByPlayer, setCameraReadyByPlayer] = useState<Record<PlayerId, boolean>>({ PLAYER_A: false, PLAYER_B: false });
+  const cameraReadyRef = useRef<Record<PlayerId, boolean>>({ PLAYER_A: false, PLAYER_B: false });
   const [loadedRoundAssets, setLoadedRoundAssets] = useState<Set<string>>(() => new Set());
   // Manual QA hook: append ?simulateLoad=6000 to hold the round loader open for that many ms
   // after every round change, regardless of real asset load speed. Real GLTF loads are fast
@@ -48,15 +57,34 @@ export function App() {
   const [peerReadyRound, setPeerReadyRound] = useState<RoundId | null>(null);
   const lastReportedRoundRef = useRef<RoundId | null>(null);
   const roleRef = useRef<{ myPlayerId: PlayerId; isHost: boolean } | null>(null);
+  const spellPlaygroundRef = useRef(false);
   const hasHostRole = (connection.status === "WAITING_FOR_PEER" || connection.status === "CONNECTED") && connection.isHost;
   const { configuration, status: directorStatus, applyRemoteConfiguration } = useRunConfiguration(hasHostRole);
 
   const encounter = encounterForRound(configuration, state.round);
-  const enemyAssetsReady = debugDelayElapsed && ROUND_ANIMATION_URLS[state.round].every((url) => loadedRoundAssets.has(url));
+  const enemyAssetsReady = lightweightTestMode || (debugDelayElapsed && ROUND_ANIMATION_URLS[state.round].every((url) => loadedRoundAssets.has(url)));
   // Attacks are host-authoritative, so it's not enough for the host's own assets to be ready:
   // a guest with a slower connection could still be staring at their own RoundLoader — which
   // covers the attack windup cue — unable to defend against a hit they can't even see coming.
   const bothPlayersReady = enemyAssetsReady && peerReadyRound === state.round;
+
+  const applyCameraReady = useCallback((playerId: PlayerId, ready: boolean) => {
+    if (cameraReadyRef.current[playerId] === ready) return;
+    cameraReadyRef.current = { ...cameraReadyRef.current, [playerId]: ready };
+    setCameraReadyByPlayer(cameraReadyRef.current);
+  }, []);
+
+  const resetCameraReadiness = useCallback(() => {
+    cameraReadyRef.current = { PLAYER_A: false, PLAYER_B: false };
+    setCameraReadyByPlayer(cameraReadyRef.current);
+  }, []);
+
+  const reportLocalCameraReady = useCallback((ready: boolean) => {
+    const role = roleRef.current;
+    if (!role || cameraReadyRef.current[role.myPlayerId] === ready) return;
+    applyCameraReady(role.myPlayerId, ready);
+    transport.publish({ type: "CAMERA_READY", playerId: role.myPlayerId, ready });
+  }, [applyCameraReady, transport]);
 
   const castGesture = (gesture: Gesture, at: number) => {
     const role = roleRef.current;
@@ -86,6 +114,7 @@ export function App() {
   useEffect(() => {
     const unsubscribe = transport.subscribe((event) => {
       if (event.type === "ROLE_ASSIGNED") {
+        resetCameraReadiness();
         roleRef.current = { myPlayerId: event.playerId, isHost: event.isHost };
         setConnection((current) =>
           current.status === "CONNECTING"
@@ -103,7 +132,13 @@ export function App() {
         );
         return;
       }
+      if (event.type === "CAMERA_READY") {
+        applyCameraReady(event.playerId, event.ready);
+        return;
+      }
       if (event.type === "PEER_LEFT") {
+        dispatch({ type: "RESET" });
+        resetCameraReadiness();
         setConnection((current) =>
           current.status === "WAITING_FOR_PEER" || current.status === "CONNECTED"
             ? { status: "PEER_LEFT", code: current.code, myPlayerId: current.myPlayerId, isHost: current.isHost }
@@ -116,6 +151,15 @@ export function App() {
         setPeerReadyRound(event.round);
         return;
       }
+      if (event.type === "SESSION_END") {
+        dispatch({ type: "RESET" });
+        resetCameraReadiness();
+        roleRef.current = null;
+        transport.disconnect();
+        setConnectError("The arena session was ended by the other player.");
+        setConnection({ status: "IDLE" });
+        return;
+      }
       if (event.type === "GESTURE") {
         if (roleRef.current?.isHost) {
           // The guest's `at` is on its own performance.now() clock, which is unrelated to
@@ -126,8 +170,12 @@ export function App() {
         }
         return;
       }
+      if (event.type === "GESTURE_END") {
+        if (roleRef.current?.isHost) dispatch({ type: "GESTURE_END", playerId: event.playerId });
+        return;
+      }
       if (event.type === "STATE_SYNC") {
-        dispatch({ type: "SYNC", state: event.state });
+        dispatch({ type: "SYNC", state: rebaseSyncedState(event.state, event.sentAt, performance.now()) });
         return;
       }
       if (event.type === "DIRECTOR_SYNC") {
@@ -135,13 +183,13 @@ export function App() {
       }
     });
     return unsubscribe;
-  }, [transport, applyRemoteConfiguration]);
+  }, [transport, applyRemoteConfiguration, applyCameraReady, resetCameraReadiness]);
 
   useEffect(() => () => transport.disconnect(), [transport]);
 
   useEffect(() => {
     if (connection.status === "CONNECTED" && connection.isHost) {
-      transport.publish({ type: "STATE_SYNC", state });
+      transport.publish({ type: "STATE_SYNC", state, sentAt: performance.now() });
     }
   }, [state, connection, transport]);
 
@@ -202,17 +250,39 @@ export function App() {
   }, [state.status, state.round, bothPlayersReady, connection]);
 
   useEffect(() => {
+    if (state.status !== "PLAYING" && !isSpellPlayground) {
+      setNow(0);
+      return;
+    }
+    const update = () => setNow(performance.now());
+    update();
+    const interval = window.setInterval(update, 100);
+    return () => window.clearInterval(interval);
+  }, [state.status, isSpellPlayground]);
+
+  spellPlaygroundRef.current = isSpellPlayground;
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const gesture = keyGestures[event.key];
       if (!gesture || event.repeat) return;
-      castGesture(gesture, performance.now());
+      if (!spellPlaygroundRef.current) castGesture(gesture, performance.now());
+    };
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (!keyGestures[event.key]) return;
+      if (!spellPlaygroundRef.current) clearGesture();
     };
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+    };
   }, []);
 
   const progress = state.enemyMaxHp === 0 ? 0 : (state.enemyHp / state.enemyMaxHp) * 100;
   const connected = connection.status === "CONNECTED";
+  const hasRoom = connection.status === "CONNECTED" || connection.status === "WAITING_FOR_PEER";
   const message = directMessage(configuration, state.message);
   const directorLabel = directorStatus === "ai"
     ? "AI Director"
@@ -221,7 +291,13 @@ export function App() {
       : directorStatus === "loading"
         ? "Directing…"
         : "Classic run";
-  const arenaState = isPreviewing ? { ...state, round: previewRound } : state;
+  const arenaState = isSpellPlayground ? playgroundState : isPreviewing ? { ...state, round: previewRound } : state;
+  const arenaEncounter = encounterForRound(configuration, arenaState.round);
+  const myPlayerId = hasRoom ? connection.myPlayerId : "PLAYER_A";
+  const otherPlayerId: PlayerId = myPlayerId === "PLAYER_A" ? "PLAYER_B" : "PLAYER_A";
+  const trackingActive = connected && (state.status === "LOBBY" || state.status === "PLAYING");
+  const bothCamerasReady = cameraReadyByPlayer.PLAYER_A && cameraReadyByPlayer.PLAYER_B;
+  const readyCameraCount = Number(cameraReadyByPlayer.PLAYER_A) + Number(cameraReadyByPlayer.PLAYER_B);
   const onAssetLoaded = useCallback((assetUrl: string) => {
     setLoadedAssets((current) => current.has(assetUrl) ? current : new Set(current).add(assetUrl));
   }, []);
@@ -229,25 +305,56 @@ export function App() {
     setLoadedRoundAssets((current) => current.has(assetUrl) ? current : new Set(current).add(assetUrl));
   }, []);
 
+  const exitSession = () => {
+    const role = roleRef.current;
+    if (role && connected) transport.publish({ type: "SESSION_END", playerId: role.myPlayerId });
+    window.setTimeout(() => {
+      transport.disconnect();
+      roleRef.current = null;
+      dispatch({ type: "RESET" });
+      resetCameraReadiness();
+      setConnectError("");
+      setConnection({ status: "IDLE" });
+    }, connected ? 120 : 0);
+  };
+
+  const openSpellPlayground = () => {
+    dispatchPlayground({ type: "RESET" });
+    dispatchPlayground({ type: "START" });
+    setIsSpellPlayground(true);
+  };
+
+  const closeSpellPlayground = () => {
+    setIsSpellPlayground(false);
+    dispatchPlayground({ type: "RESET" });
+  };
+
+  const clearGesture = () => {
+    const role = roleRef.current;
+    if (!role) return;
+    dispatch({ type: "GESTURE_END", playerId: role.myPlayerId });
+    if (!role.isHost) transport.publish({ type: "GESTURE_END", playerId: role.myPlayerId });
+  };
+
   return (
     <main className="relative h-dvh w-screen overflow-hidden bg-[#08060f]">
       <section className="absolute inset-0 overflow-hidden">
-        <Arena state={arenaState} enemyColor={encounter.color} preview={isPreviewing} resetKey={previewResetKey} onAssetLoaded={onAssetLoaded} onRoundAssetLoaded={onRoundAssetLoaded} />
+        {lightweightTestMode
+          ? <div className="arena-lite-bg" aria-hidden="true" />
+          : <Arena state={arenaState} playerId={myPlayerId} enemyColor={arenaEncounter.color} now={now} preview={isPreviewing} resetKey={previewResetKey} onAssetLoaded={onAssetLoaded} onRoundAssetLoaded={onRoundAssetLoaded} />}
 
-        <StartupLoader loadedAssets={loadedAssets.size} totalAssets={criticalAssetCount} />
+        {!lightweightTestMode && <StartupLoader loadedAssets={loadedAssets.size} totalAssets={criticalAssetCount} />}
 
-        <header className="absolute top-4 left-4 z-20 flex items-center gap-3 rounded-2xl border border-[#342849] bg-[#0c0915c9] px-4 py-3 backdrop-blur-md">
-          <div>
-            <p className="mb-0.5 text-[0.68rem] tracking-[0.17em] text-[#9d90bd] uppercase">Co-op gesture combat · proof of concept</p>
-            <h1 className="font-display m-0 text-[clamp(1.7rem,4vw,2.8rem)] leading-none tracking-[-0.06em]">Spell<span className="text-[#ff7758]">Brawl</span></h1>
-          </div>
-          <div className="hidden rounded-full border border-[#3c3053] bg-[#141020cc] px-3.5 py-2.5 text-xs tracking-[0.08em] sm:block">
+        <header className="game-header">
+          <h1>Spell<span>Brawl</span></h1>
+          <div className="room-chip">
             <span className="mr-2 inline-block size-[7px] rounded-full bg-[#70efb0] shadow-[0_0_10px_#70efb0]" />{" "}
             {connection.status === "CONNECTED" || connection.status === "WAITING_FOR_PEER"
               ? `Room: ${connection.code} · ${connection.isHost ? "Host" : "Guest"}`
               : "Room: —"}
-            <span className="ml-3 border-l border-[#3c3053] pl-3 text-[#b8a8d2]">{directorLabel}</span>
+            <span>{directorLabel}</span>
           </div>
+          {hasRoom && <button className="exit-session" type="button" onClick={exitSession}>Exit lobby</button>}
         </header>
 
         {isPreviewing ? (
@@ -265,11 +372,13 @@ export function App() {
             <button id="explore-scene" type="button" className="rounded-full border border-[#70efb0] bg-[#173225] px-3 py-2 text-[#baf7d5]">Explore · WASD + mouse</button>
             <button type="button" className="rounded-full border border-[#57466f] bg-[#171020] px-3 py-2 text-[#e7ddf7]" onClick={() => setIsPreviewing(false)}>Exit preview</button>
           </div>
+        ) : isSpellPlayground ? (
+          <SpellPlayground state={playgroundState} now={now} dispatch={dispatchPlayground} onExit={closeSpellPlayground} testMode={import.meta.env.DEV && lightweightTestMode} />
         ) : !connected ? (
-          <RoomGate connection={connection} errorMessage={connectError} onCreate={connectTransport} onJoin={connectTransport} onPreview={() => setIsPreviewing(true)} />
+          <RoomGate connection={connection} errorMessage={connectError} onCreate={connectTransport} onJoin={connectTransport} onPreview={() => setIsPreviewing(true)} onTestSpells={openSpellPlayground} />
         ) : (
           <>
-            <div className="absolute top-[104px] left-1/2 z-10 w-[min(380px,65%)] -translate-x-1/2 text-center min-[901px]:top-5">
+            <div className="enemy-hud">
               <small className="tracking-[0.15em] text-[#b8a8d2] uppercase">{encounter.title}</small>
               <h2 className="font-display my-1 text-[clamp(1.4rem,3vw,2.2rem)]">{encounter.name}</h2>
               <div className="h-[7px] rounded-[9px] border border-[#6c567e] bg-[#110d19] p-px">
@@ -283,12 +392,30 @@ export function App() {
               )}
             </div>
 
-            <div className="absolute top-[190px] left-4 z-10 flex flex-col items-start gap-2 min-[901px]:top-[124px]">
-              <div className="rounded-full border border-[#392e4c] bg-[#0c0915cc] px-3 py-2.5 text-[0.7rem] tracking-[0.08em] uppercase backdrop-blur-sm">Round {state.roundNumber} / 3</div>
-              <div className="rounded-full border border-[#392e4c] bg-[#0c0915cc] px-3 py-2.5 text-[0.7rem] tracking-[0.08em] text-[#e5b6ff] uppercase backdrop-blur-sm">✦ Shared link: {"◆".repeat(state.sharedHp)}{"◇".repeat(5 - state.sharedHp)}</div>
+            <div className="team-status">
+              <div>Round {state.roundNumber} / 3</div>
+              <div className="shared-hp"><span><b>Shared HP</b><em>{state.sharedHp} / 5</em></span><div><i style={{ width: `${state.sharedHp * 20}%` }} /></div></div>
             </div>
 
-            <div className="absolute bottom-[44dvh] left-1/2 z-10 w-[min(700px,calc(100%_-_32px))] -translate-x-1/2 rounded-xl border border-[#3b2d50] bg-[#0c0915df] px-5 py-3.5 text-center text-sm text-[#ded4ef] backdrop-blur-md min-[901px]:bottom-6">{message}</div>
+            <div className="combat-message">{message}</div>
+
+            <MoveMenu state={state} playerId={myPlayerId} now={now} />
+
+            <div className={`player-cameras ${state.status === "LOBBY" ? "is-lobby" : ""}`}>
+              <WebcamPreview
+                playerLabel={myPlayerId === "PLAYER_A" ? "Player 1" : "Player 2"}
+                active={trackingActive}
+                castingEnabled={state.status === "PLAYING"}
+                testMode={import.meta.env.DEV && lightweightTestMode}
+                onGesture={(gesture) => castGesture(gesture, performance.now())}
+                onGestureEnd={clearGesture}
+                onReadyChange={reportLocalCameraReady}
+              />
+              <RemoteHandPreview playerLabel={otherPlayerId === "PLAYER_A" ? "Player 1" : "Player 2"} active={trackingActive} ready={cameraReadyByPlayer[otherPlayerId]} gesture={state.players[otherPlayerId].lastGesture} />
+            </div>
+
+            {state.sharedHp <= 2 && state.status === "PLAYING" && <div className="low-health-vignette" aria-hidden="true" />}
+            {state.effect?.kind === "PLAYER_HIT" && <div key={state.effect.id} className="damage-flash" aria-hidden="true" />}
 
             {state.status === "PLAYING" && !enemyAssetsReady && <RoundLoader label={`Summoning ${encounter.name}…`} />}
             {state.status === "PLAYING" && enemyAssetsReady && !bothPlayersReady && <RoundLoader label="Waiting for the other spellcaster…" />}
@@ -297,33 +424,16 @@ export function App() {
               <div className="absolute inset-0 z-[15] grid place-content-center bg-[radial-gradient(circle,#160f27aa,#08060fef_70%)] text-center">
                 <p className="m-0 text-[0.7rem] tracking-[0.15em] text-[#b7a6d1] uppercase">{state.status === "VICTORY" ? "The rift is sealed" : state.status === "DEFEAT" ? "The link has broken" : "Two hands. One spell."}</p>
                 <h2 className="font-display mt-2 mb-[22px] text-[clamp(2.4rem,7vw,5rem)]">{state.status === "VICTORY" ? "Victory" : state.status === "DEFEAT" ? "Defeat" : "Enter the arena"}</h2>
+                {state.status === "LOBBY" && <p className="mb-4 text-xs tracking-[0.12em] text-[#b7a6d1] uppercase" aria-live="polite">Cameras ready · {readyCameraCount} / 2</p>}
                 {connection.isHost ? (
-                  <button className="justify-self-center rounded-full border border-[#ff9a6a] bg-linear-to-br from-[#ffd376] to-[#ff7258] px-[22px] py-3 font-bold text-[#180b11] transition-transform hover:scale-105" type="button" onClick={() => dispatch({ type: state.status === "LOBBY" ? "START" : "RESET" })}>
-                    {state.status === "LOBBY" ? "Begin POC" : "Return to lobby"}
+                  <button className="justify-self-center rounded-full border border-[#ff9a6a] bg-linear-to-br from-[#ffd376] to-[#ff7258] px-[22px] py-3 font-bold text-[#180b11] transition-transform hover:scale-105 disabled:cursor-not-allowed disabled:opacity-45" type="button" disabled={state.status === "LOBBY" && !bothCamerasReady} onClick={() => { if (state.status !== "LOBBY" || bothCamerasReady) dispatch({ type: state.status === "LOBBY" ? "START" : "RESET" }); }}>
+                    {state.status === "LOBBY" ? bothCamerasReady ? "Start" : "Waiting for cameras" : "Return to lobby"}
                   </button>
                 ) : (
-                  <p className="m-0 text-[0.7rem] tracking-[0.15em] text-[#b7a6d1] uppercase">Waiting for the host…</p>
+                  <p className="m-0 text-[0.7rem] tracking-[0.15em] text-[#b7a6d1] uppercase">{state.status === "LOBBY" && !bothCamerasReady ? "Grant camera access on both screens…" : "Waiting for the host…"}</p>
                 )}
               </div>
             )}
-
-            <aside className="absolute right-3 bottom-3 left-3 z-20 grid max-h-[41dvh] grid-cols-2 gap-2 overflow-y-auto min-[901px]:top-4 min-[901px]:right-4 min-[901px]:bottom-auto min-[901px]:left-auto min-[901px]:flex min-[901px]:max-h-[calc(100dvh_-_32px)] min-[901px]:w-[340px] min-[901px]:flex-col min-[901px]:gap-3">
-              <WebcamPreview onGesture={(gesture) => castGesture(gesture, performance.now())} />
-              <GestureControls onGesture={(gesture) => castGesture(gesture, performance.now())} />
-              {connection.isHost && (
-                <button
-                  className="col-span-2 cursor-pointer rounded-[10px] border border-dashed border-[#653c45] bg-[#0c0915bb] p-2.5 text-[0.68rem] text-[#b9979d] backdrop-blur-sm disabled:cursor-not-allowed disabled:opacity-40 min-[901px]:col-auto"
-                  type="button"
-                  disabled={!bothPlayersReady}
-                  onClick={() => {
-                    dispatch({ type: "ENEMY_ATTACK_WINDUP", at: performance.now() });
-                    window.setTimeout(() => dispatch({ type: "ENEMY_ATTACK", at: performance.now() }), ATTACK_IMPACT_DELAY_MS[state.round]);
-                  }}
-                >
-                  Simulate enemy attack
-                </button>
-              )}
-            </aside>
           </>
         )}
       </section>

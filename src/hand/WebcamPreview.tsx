@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import type { Gesture } from "../game/types";
 import type { Landmark, PoseResult } from "./gestureClassifier";
 import { MediaPipeGestureSource } from "./MediaPipeGestureSource";
+import { GestureGlyph, gestureLabel } from "../ui/GestureGlyph";
 
 type TrackingStatus = "idle" | "starting" | "tracking" | "blocked" | "error";
 
 const CAMERA_REQUEST_TIMEOUT_MS = 8_000;
+const POSE_STALE_MS = 500;
 
 const HAND_CONNECTIONS: Array<[number, number]> = [
   [0, 1], [1, 2], [2, 3], [3, 4],
@@ -90,29 +92,95 @@ const requestCamera = async () => {
   }
 };
 
-export function WebcamPreview({ onGesture }: { onGesture: (gesture: Gesture, confidence: number) => void }) {
+export function WebcamPreview({ onGesture, onGestureEnd, onReadyChange, active, castingEnabled, playerLabel, testMode = false }: { onGesture: (gesture: Gesture, confidence: number) => void; onGestureEnd: () => void; onReadyChange: (ready: boolean) => void; active: boolean; castingEnabled: boolean; playerLabel: string; testMode?: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sourceRef = useRef<MediaPipeGestureSource | null>(null);
   const runIdRef = useRef(0);
+  const poseWasPresentRef = useRef(false);
+  const readyRef = useRef(false);
+  const poseExpiryRef = useRef(0);
+  const onGestureRef = useRef(onGesture);
+  const onGestureEndRef = useRef(onGestureEnd);
+  const onReadyChangeRef = useRef(onReadyChange);
+  const castingEnabledRef = useRef(castingEnabled);
+  const needsNeutralRef = useRef(false);
   const [status, setStatus] = useState<TrackingStatus>("idle");
   const [pose, setPose] = useState<PoseResult | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
 
+  onGestureRef.current = onGesture;
+  onGestureEndRef.current = onGestureEnd;
+  onReadyChangeRef.current = onReadyChange;
+
+  const clearPoseExpiry = () => {
+    window.clearTimeout(poseExpiryRef.current);
+    poseExpiryRef.current = 0;
+  };
+
+  const clearDisplayedPose = () => {
+    clearPoseExpiry();
+    setPose(null);
+    if (poseWasPresentRef.current) onGestureEndRef.current();
+    poseWasPresentRef.current = false;
+    const canvas = canvasRef.current;
+    if (canvas) drawHands(canvas, [], null);
+  };
+
+  const reportReady = (ready: boolean) => {
+    if (readyRef.current === ready) return;
+    readyRef.current = ready;
+    onReadyChangeRef.current(ready);
+  };
+
+  const stopTracking = () => {
+    runIdRef.current += 1;
+    sourceRef.current?.stop();
+    sourceRef.current = null;
+    const stream = videoRef.current?.srcObject;
+    if (stream instanceof MediaStream) stream.getTracks().forEach((track) => track.stop());
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setStatus("idle");
+    clearDisplayedPose();
+    reportReady(false);
+  };
+
+  useEffect(() => {
+    if (castingEnabled && !castingEnabledRef.current) {
+      // Tracking starts in the lobby. Require the player to release that setup pose
+      // before combat so an already-raised palm cannot cast Shield on Start.
+      needsNeutralRef.current = true;
+      clearDisplayedPose();
+    } else if (!castingEnabled) {
+      needsNeutralRef.current = true;
+    }
+    castingEnabledRef.current = castingEnabled;
+  }, [castingEnabled]);
+
   useEffect(() => {
     return () => {
       runIdRef.current += 1;
+      clearPoseExpiry();
       sourceRef.current?.stop();
-      sourceRef.current = null;
       const stream = videoRef.current?.srcObject;
       if (stream instanceof MediaStream) stream.getTracks().forEach((track) => track.stop());
     };
   }, []);
 
+  useEffect(() => {
+    if (!active && status !== "idle") stopTracking();
+  }, [active]);
+
   const enableCamera = async () => {
+    if (!active) return;
     const runId = ++runIdRef.current;
     setStatus("starting");
     setErrorMessage("");
+    if (testMode) {
+      setStatus("tracking");
+      reportReady(true);
+      return;
+    }
     let stream: MediaStream | undefined;
     try {
       stream = await requestCamera();
@@ -131,21 +199,35 @@ export function WebcamPreview({ onGesture }: { onGesture: (gesture: Gesture, con
       const source = new MediaPipeGestureSource(videoRef.current, {
         onFrame: (hands, poseResult) => {
           setPose(poseResult);
+          clearPoseExpiry();
+          if (!poseResult) {
+            if (poseWasPresentRef.current) onGestureEndRef.current();
+            if (castingEnabledRef.current) needsNeutralRef.current = false;
+          } else {
+            poseExpiryRef.current = window.setTimeout(clearDisplayedPose, POSE_STALE_MS);
+          }
+          poseWasPresentRef.current = poseResult !== null;
           if (canvas) drawHands(canvas, hands, poseResult?.gesture.replaceAll("_", " ") ?? null);
         },
       });
       sourceRef.current = source;
-      await source.start((confirmed) => onGesture(confirmed.gesture, confirmed.confidence));
+      await source.start((confirmed) => {
+        if (castingEnabledRef.current && !needsNeutralRef.current) {
+          onGestureRef.current(confirmed.gesture, confirmed.confidence);
+        }
+      });
       if (runId !== runIdRef.current) {
         source.stop();
         return;
       }
       setStatus("tracking");
+      reportReady(true);
     } catch (error) {
       sourceRef.current?.stop();
       sourceRef.current = null;
       stream?.getTracks().forEach((track) => track.stop());
       if (runId !== runIdRef.current) return;
+      reportReady(false);
       const permissionBlocked = error instanceof DOMException && (error.name === "NotAllowedError" || error.name === "PermissionDeniedError");
       const requestTimedOut = error instanceof DOMException && error.name === "TimeoutError";
       setStatus(permissionBlocked ? "blocked" : "error");
@@ -166,13 +248,19 @@ export function WebcamPreview({ onGesture }: { onGesture: (gesture: Gesture, con
     : status === "starting" ? "Starting camera and loading hand model…" : "Keyboard gestures are active.";
 
   return (
-    <section className="rounded-[15px] border border-[#2e2440] bg-[#100c19cc] p-[11px] min-[561px]:col-span-2 min-[901px]:col-auto">
-      <div className="relative aspect-video overflow-hidden rounded-[10px] bg-linear-to-br from-[#181225] to-[#0b0910]">
-        <video ref={videoRef} muted playsInline aria-hidden="true" className="absolute inset-0 size-full object-cover opacity-0" />
+    <section className="hand-card" aria-label={`${playerLabel} hand tracking`}>
+      <div className="hand-viewport">
+        <video ref={videoRef} muted playsInline aria-hidden="true" className="absolute inset-0 size-full -scale-x-100 object-cover opacity-0" />
         <canvas ref={canvasRef} width={640} height={480} className="pointer-events-none absolute inset-0 size-full" />
-        {status !== "tracking" && (
+        {!active ? (
+          <div className="tracking-paused">
+            <GestureGlyph />
+            <strong>Tracking paused</strong>
+            <span>Start the game to enable your camera</span>
+          </div>
+        ) : status !== "tracking" && (
           <button
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-lg border border-[#57466f] bg-[#171020] px-[11px] py-2 whitespace-nowrap text-[#e7ddf7]"
+            className="camera-button"
             type="button"
             onClick={enableCamera}
             disabled={status === "starting"}
@@ -180,23 +268,24 @@ export function WebcamPreview({ onGesture }: { onGesture: (gesture: Gesture, con
             {status === "idle" ? "Grant camera access" : status === "starting" ? "Starting…" : "Retry hand tracking"}
           </button>
         )}
+        <span className="player-rune">P{playerLabel.at(-1)}</span>
       </div>
-      <div className="mt-2 flex items-center justify-between">
-        <span className="font-display text-xs">
-          <i className={`mr-[7px] inline-block size-[7px] rounded-full ${
+      <div className="hand-card-meta">
+        <span>
+          <i className={`status-dot ${
             status === "tracking"
-              ? "bg-[#60e9a2] shadow-[0_0_8px_#60e9a2]"
+              ? "is-live"
               : status === "blocked" || status === "error"
-                ? "bg-[#ff645c]"
+                ? "is-error"
                 : status === "starting"
-                  ? "bg-[#f7b955] shadow-[0_0_8px_#f7b955]"
-                  : "bg-[#695f77]"
-          }`} /> Hand tracking
+                  ? "is-starting"
+                  : ""
+          }`} /> {playerLabel}
         </span>
-        <small className="text-[0.62rem] text-[#81738f]">{status === "tracking" ? "Active" : "Local input"}</small>
+        <small>{active ? status === "tracking" ? "Active" : "Local" : "Paused"}</small>
       </div>
-      <p className="mx-0.5 mt-1 mb-px text-[0.68rem] text-[#9387a5]">
-        {errorMessage || statusText}
+      <p>
+        {!active ? "Hand tracking resumes when the game begins." : errorMessage || (pose ? `${gestureLabel(pose.gesture)} · ${Math.round(pose.confidence * 100)}% confidence` : statusText)}
       </p>
     </section>
   );
