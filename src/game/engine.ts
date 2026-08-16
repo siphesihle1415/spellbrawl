@@ -3,7 +3,14 @@ import type { GameAction, GameState, Gesture, PlayerId, TimedGesture } from "./t
 
 const COMBO_WINDOW = 1_500;
 const FIREBOLT_WINDOW = 3_000;
-const SHIELD_WINDOW = 1_200;
+// A raised palm must still be "shielded" when the host's ENEMY_ATTACK resolves. For a remote
+// guest, the windup cue arrives after network latency and their palm-raise travels back over
+// the same link before the host timestamps it — that round trip eats directly into their
+// reaction budget, while the host (zero-latency, same clock) keeps the full window. Sized above
+// the longest attack's impact delay (Hexwyrm, 3,120ms — see ATTACK_IMPACT_DELAY_MS in
+// game/monsters.ts) so a guest who reacts the instant they see the cue stays covered even on a
+// laggy connection, instead of losing the block purely to latency they can't control.
+export const SHIELD_WINDOW_MS = 3_500;
 const MEMORY_WINDOW = 2_000;
 
 const withEffect = (
@@ -29,6 +36,7 @@ export const initialGameState = (): GameState => ({
   enemyHp: encounters.EMBERMAW.hp,
   enemyMaxHp: encounters.EMBERMAW.hp,
   armorBreaks: 0,
+  enemyAttackCount: 0,
   players: emptyPlayers(),
   recentGestures: [],
   message: "Gather both spellcasters, then begin.",
@@ -137,6 +145,10 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
   }
   if (state.status !== "PLAYING") return state;
 
+  if (action.type === "ENEMY_ATTACK_WINDUP") {
+    return { ...state, enemyAttackCount: state.enemyAttackCount + 1, message: "The enemy winds up an attack! Raise an OPEN PALM to defend." };
+  }
+
   if (action.type === "ENEMY_ATTACK") {
     const protectedPlayers = Object.values(state.players).filter((player) => player.shieldedUntil >= action.at).length;
     if (protectedPlayers > 0) return withEffect({ ...state, message: "Arcane shield absorbs the attack." }, "SHIELD");
@@ -155,7 +167,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     [playerId]: {
       ...player,
       lastGesture: gesture,
-      shieldedUntil: gesture === "OPEN_PALM" && !firebolt ? at + SHIELD_WINDOW : player.shieldedUntil,
+      shieldedUntil: gesture === "OPEN_PALM" && !firebolt ? at + SHIELD_WINDOW_MS : player.shieldedUntil,
       fistPrimedUntil: gesture === "FIST" ? at + FIREBOLT_WINDOW : firebolt ? 0 : player.fistPrimedUntil,
     },
   };

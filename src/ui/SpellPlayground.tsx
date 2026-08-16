@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type Dispatch } from "react";
 import { encounters } from "../game/config";
-import { gameReducer, initialGameState } from "../game/engine";
+import { gameReducer, initialGameState, SHIELD_WINDOW_MS } from "../game/engine";
 import type { CombatEffectKind, GameAction, GameState, Gesture, Phase, RoundId } from "../game/types";
 import { WebcamPreview } from "../hand/WebcamPreview";
 import { GestureGlyph, gestureLabel } from "./GestureGlyph";
@@ -82,7 +82,7 @@ export function SpellPlayground({ state, now, dispatch, onExit, testMode }: { st
 
     if (nextStep === spell.gestures.length) {
       effectIdRef.current += 1;
-      const shieldedUntil = spell.effect === "SHIELD" ? performance.now() + 1_200 : current.players.PLAYER_A.shieldedUntil;
+      const shieldedUntil = spell.effect === "SHIELD" ? performance.now() + SHIELD_WINDOW_MS : current.players.PLAYER_A.shieldedUntil;
       dispatch({
         type: "SYNC",
         state: {

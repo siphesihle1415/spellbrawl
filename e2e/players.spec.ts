@@ -53,7 +53,7 @@ test("two players see the combat HUD, synced gestures, and shared session exit",
   const guestShieldMove = guest.locator(".compact-spell").filter({ hasText: "Arcane Shield" });
   await host.keyboard.press("2");
   await expect(guestShieldMove).toHaveClass(/is-active/);
-  await expect(guestShieldMove).not.toHaveClass(/is-active/, { timeout: 3_000 });
+  await expect(guestShieldMove).not.toHaveClass(/is-active/, { timeout: 5_000 });
   await host.getByRole("button", { name: "Exit lobby" }).click();
   await expect(guest.getByText("The arena session was ended by the other player.")).toBeVisible();
 
@@ -76,7 +76,7 @@ test("spell playground uses one hand tracker and drives the real spell state", a
   await expect(shieldMove).not.toHaveClass(/is-active/);
   await page.keyboard.press("2");
   await expect(shieldMove).toHaveClass(/is-active/);
-  await expect(shieldMove).not.toHaveClass(/is-active/, { timeout: 3_000 });
+  await expect(shieldMove).not.toHaveClass(/is-active/, { timeout: 5_000 });
 
   await spellPicker.getByRole("button", { name: "Firebolt", exact: true }).click();
   await page.keyboard.press("1");

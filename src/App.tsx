@@ -3,6 +3,7 @@ import { directMessage, encounterForRound } from "./director/defaultConfig";
 import { useRunConfiguration } from "./director/useRunConfiguration";
 import { gameReducer, initialGameState } from "./game/engine";
 import { rebaseSyncedState } from "./game/syncClock";
+import { ATTACK_IMPACT_DELAY_MS, ROUND_ANIMATION_URLS } from "./game/monsters";
 import type { Gesture, PlayerId, RoundId } from "./game/types";
 import { WebcamPreview } from "./hand/WebcamPreview";
 import { CloudflareRoomTransport } from "./multiplayer/CloudflareRoomTransport";
@@ -12,6 +13,7 @@ import { MoveMenu } from "./ui/MoveMenu";
 import { RemoteHandPreview } from "./ui/RemoteHandPreview";
 import { RoomGate } from "./ui/RoomGate";
 import { SpellPlayground } from "./ui/SpellPlayground";
+import { RoundLoader } from "./ui/RoundLoader";
 import { StartupLoader } from "./ui/StartupLoader";
 
 const keyGestures: Record<string, Gesture> = {
@@ -43,12 +45,28 @@ export function App() {
   const [now, setNow] = useState(0);
   const [cameraReadyByPlayer, setCameraReadyByPlayer] = useState<Record<PlayerId, boolean>>({ PLAYER_A: false, PLAYER_B: false });
   const cameraReadyRef = useRef<Record<PlayerId, boolean>>({ PLAYER_A: false, PLAYER_B: false });
+  const [loadedRoundAssets, setLoadedRoundAssets] = useState<Set<string>>(() => new Set());
+  // Manual QA hook: append ?simulateLoad=6000 to hold the round loader open for that many ms
+  // after every round change, regardless of real asset load speed. Real GLTF loads are fast
+  // enough on localhost/warm cache that the loader rarely has a chance to appear otherwise.
+  const [debugSimulateLoadMs] = useState(() => {
+    const parsed = Number(new URLSearchParams(window.location.search).get("simulateLoad"));
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  });
+  const [debugDelayElapsed, setDebugDelayElapsed] = useState(debugSimulateLoadMs === 0);
+  const [peerReadyRound, setPeerReadyRound] = useState<RoundId | null>(null);
+  const lastReportedRoundRef = useRef<RoundId | null>(null);
   const roleRef = useRef<{ myPlayerId: PlayerId; isHost: boolean } | null>(null);
   const spellPlaygroundRef = useRef(false);
   const hasHostRole = (connection.status === "WAITING_FOR_PEER" || connection.status === "CONNECTED") && connection.isHost;
   const { configuration, status: directorStatus, applyRemoteConfiguration } = useRunConfiguration(hasHostRole);
 
   const encounter = encounterForRound(configuration, state.round);
+  const enemyAssetsReady = lightweightTestMode || (debugDelayElapsed && ROUND_ANIMATION_URLS[state.round].every((url) => loadedRoundAssets.has(url)));
+  // Attacks are host-authoritative, so it's not enough for the host's own assets to be ready:
+  // a guest with a slower connection could still be staring at their own RoundLoader — which
+  // covers the attack windup cue — unable to defend against a hit they can't even see coming.
+  const bothPlayersReady = enemyAssetsReady && peerReadyRound === state.round;
 
   const applyCameraReady = useCallback((playerId: PlayerId, ready: boolean) => {
     if (cameraReadyRef.current[playerId] === ready) return;
@@ -126,6 +144,11 @@ export function App() {
             ? { status: "PEER_LEFT", code: current.code, myPlayerId: current.myPlayerId, isHost: current.isHost }
             : current,
         );
+        setPeerReadyRound(null);
+        return;
+      }
+      if (event.type === "ROUND_READY") {
+        setPeerReadyRound(event.round);
         return;
       }
       if (event.type === "SESSION_END") {
@@ -185,12 +208,46 @@ export function App() {
   }, [configuration, connection, directorStatus, transport]);
 
   useEffect(() => {
-    if (state.status !== "PLAYING" || connection.status !== "CONNECTED" || !connection.isHost) return;
+    if (debugSimulateLoadMs === 0) return;
+    setDebugDelayElapsed(false);
+    const timer = window.setTimeout(() => setDebugDelayElapsed(true), debugSimulateLoadMs);
+    return () => window.clearTimeout(timer);
+  }, [state.status, state.round, debugSimulateLoadMs]);
+
+  useEffect(() => {
+    // Back in the LOBBY (fresh connect, or a replay after RESET) — any earlier ROUND_READY the
+    // peer sent for EMBERMAW no longer reflects reality (their own readiness gate has since
+    // reset too), so a stale match here would let this client skip the wait it should still do.
+    if (state.status !== "LOBBY") return;
+    setPeerReadyRound(null);
+    lastReportedRoundRef.current = null;
+  }, [state.status]);
+
+  useEffect(() => {
+    // EMBERMAW is also `state.round` while still in the LOBBY (before the match starts), so
+    // without the PLAYING check a client can report ready before the round has actually begun.
+    // The debug delay above correctly resets when PLAYING starts, but a premature report here
+    // would already be latched by the peer and never gets un-published.
+    if (state.status !== "PLAYING" || !enemyAssetsReady || connection.status !== "CONNECTED" || !roleRef.current) return;
+    if (lastReportedRoundRef.current === state.round) return;
+    lastReportedRoundRef.current = state.round;
+    transport.publish({ type: "ROUND_READY", playerId: roleRef.current.myPlayerId, round: state.round });
+  }, [state.status, enemyAssetsReady, state.round, connection, transport]);
+
+  useEffect(() => {
+    if (state.status !== "PLAYING" || !bothPlayersReady || connection.status !== "CONNECTED" || !connection.isHost) return;
+    let impactTimeout: number | undefined;
     const interval = window.setInterval(() => {
-      dispatch({ type: "ENEMY_ATTACK", at: performance.now() });
+      dispatch({ type: "ENEMY_ATTACK_WINDUP", at: performance.now() });
+      impactTimeout = window.setTimeout(() => {
+        dispatch({ type: "ENEMY_ATTACK", at: performance.now() });
+      }, ATTACK_IMPACT_DELAY_MS[state.round]);
     }, 7_000);
-    return () => window.clearInterval(interval);
-  }, [state.status, state.round, connection]);
+    return () => {
+      window.clearInterval(interval);
+      window.clearTimeout(impactTimeout);
+    };
+  }, [state.status, state.round, bothPlayersReady, connection]);
 
   useEffect(() => {
     if (state.status !== "PLAYING" && !isSpellPlayground) {
@@ -244,6 +301,9 @@ export function App() {
   const onAssetLoaded = useCallback((assetUrl: string) => {
     setLoadedAssets((current) => current.has(assetUrl) ? current : new Set(current).add(assetUrl));
   }, []);
+  const onRoundAssetLoaded = useCallback((assetUrl: string) => {
+    setLoadedRoundAssets((current) => current.has(assetUrl) ? current : new Set(current).add(assetUrl));
+  }, []);
 
   const exitSession = () => {
     const role = roleRef.current;
@@ -281,7 +341,7 @@ export function App() {
       <section className="absolute inset-0 overflow-hidden">
         {lightweightTestMode
           ? <div className="arena-lite-bg" aria-hidden="true" />
-          : <Arena state={arenaState} playerId={myPlayerId} enemyColor={arenaEncounter.color} now={now} preview={isPreviewing} resetKey={previewResetKey} onAssetLoaded={onAssetLoaded} />}
+          : <Arena state={arenaState} playerId={myPlayerId} enemyColor={arenaEncounter.color} now={now} preview={isPreviewing} resetKey={previewResetKey} onAssetLoaded={onAssetLoaded} onRoundAssetLoaded={onRoundAssetLoaded} />}
 
         {!lightweightTestMode && <StartupLoader loadedAssets={loadedAssets.size} totalAssets={criticalAssetCount} />}
 
@@ -356,6 +416,9 @@ export function App() {
 
             {state.sharedHp <= 2 && state.status === "PLAYING" && <div className="low-health-vignette" aria-hidden="true" />}
             {state.effect?.kind === "PLAYER_HIT" && <div key={state.effect.id} className="damage-flash" aria-hidden="true" />}
+
+            {state.status === "PLAYING" && !enemyAssetsReady && <RoundLoader label={`Summoning ${encounter.name}…`} />}
+            {state.status === "PLAYING" && enemyAssetsReady && !bothPlayersReady && <RoundLoader label="Waiting for the other spellcaster…" />}
 
             {state.status !== "PLAYING" && (
               <div className="absolute inset-0 z-[15] grid place-content-center bg-[radial-gradient(circle,#160f27aa,#08060fef_70%)] text-center">

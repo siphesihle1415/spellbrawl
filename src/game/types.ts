@@ -54,6 +54,7 @@ export type GameState = {
   enemyHp: number;
   enemyMaxHp: number;
   armorBreaks: number;
+  enemyAttackCount: number;
   players: Record<PlayerId, PlayerState>;
   recentGestures: TimedGesture[];
   message: string;
@@ -66,4 +67,5 @@ export type GameAction =
   | { type: "SYNC"; state: GameState }
   | { type: "GESTURE"; playerId: PlayerId; gesture: Gesture; at: number }
   | { type: "GESTURE_END"; playerId: PlayerId }
+  | { type: "ENEMY_ATTACK_WINDUP"; at: number }
   | { type: "ENEMY_ATTACK"; at: number };
