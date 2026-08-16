@@ -2,7 +2,7 @@ import { Float, PointerLockControls, Sparkles, useAnimations, useGLTF } from "@r
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { LoopOnce, MathUtils, Mesh, Vector3, type AnimationAction, type AnimationClip, type Group, type Object3D, type PointLight } from "three";
-import { activeMonsterModelUrl, EMBERMAW_ANIMATED_TRANSFORM, EMBERMAW_ANIMATION_URLS, MONSTER_TRANSFORM } from "../game/monsters";
+import { activeMonsterModelUrl, EMBERMAW_ANIMATED_TRANSFORM, EMBERMAW_ANIMATION_URLS, MONSTER_TRANSFORM, SHARD_WARDEN_ANIMATED_TRANSFORM, SHARD_WARDEN_ANIMATION_URLS } from "../game/monsters";
 import type { GameState } from "../game/types";
 
 const SCENE_MESH_URL = "/models/spellbrawl-three-rooms-open-lighting.glb";
@@ -159,14 +159,27 @@ const EMBERMAW_CLIP = {
   fallingDown: "Armature|falling_down|baselayer",
 } as const;
 
+const SHARD_WARDEN_CLIP = {
+  walking: "Armature|walking_man|baselayer",
+  skill03: "Armature|Skill_03|baselayer",
+  tripleComboAttack: "Armature|Triple_Combo_Attack|baselayer",
+  shotInTheBackAndFall: "Armature|Shot_in_the_Back_and_Fall|baselayer",
+} as const;
+
 const CROSSFADE_SECONDS = 0.2;
 const EMBERMAW_DEFEAT_HOLD_MS = 2500;
+const SHARD_WARDEN_DEFEAT_HOLD_MS = 5500;
 const ROOT_BONE_NAME = "Hips";
 const EMBERMAW_REST_OFFSET_Z = 0.45;
 const EMBERMAW_REST_Z = MONSTER_Z + EMBERMAW_REST_OFFSET_Z;
 const EMBERMAW_ENTRANCE_START_OFFSET_Z = -2.5;
 const EMBERMAW_ENTRANCE_START_Z = EMBERMAW_REST_Z + EMBERMAW_ENTRANCE_START_OFFSET_Z;
 const EMBERMAW_ENTRANCE_DURATION_MS = 3000;
+const SHARD_WARDEN_REST_OFFSET_Z = 0.45;
+const SHARD_WARDEN_REST_Z = MONSTER_Z + SHARD_WARDEN_REST_OFFSET_Z;
+const SHARD_WARDEN_ENTRANCE_START_OFFSET_Z = -2.5;
+const SHARD_WARDEN_ENTRANCE_START_Z = SHARD_WARDEN_REST_Z + SHARD_WARDEN_ENTRANCE_START_OFFSET_Z;
+const SHARD_WARDEN_ENTRANCE_DURATION_MS = 3000;
 
 // Reaction clips (e.g. Jumping_Punch) bake forward lunge into the Hips root bone, which would
 // otherwise shove the whole rig toward the camera each time they play. Pin X/Z to the first
@@ -282,6 +295,104 @@ function AnimatedEmbermaw({ state, color }: { state: GameState; color: string })
   );
 }
 
+function AnimatedShardWarden({ state, color }: { state: GameState; color: string }) {
+  const group = useRef<Group>(null);
+  const entranceGroup = useRef<Group>(null);
+  const entranceStartAt = useRef<number | null>(null);
+  const shielded = state.phase === "SHIELDED" || state.phase === "ARMOR_PHASE";
+  const walking = useGLTF(SHARD_WARDEN_ANIMATION_URLS.walking);
+  const skill03 = useGLTF(SHARD_WARDEN_ANIMATION_URLS.skill03);
+  const tripleComboAttack = useGLTF(SHARD_WARDEN_ANIMATION_URLS.tripleComboAttack);
+  const shotInTheBackAndFall = useGLTF(SHARD_WARDEN_ANIMATION_URLS.shotInTheBackAndFall);
+  const clips = useMemo(
+    () => [...walking.animations, ...skill03.animations, ...tripleComboAttack.animations, ...shotInTheBackAndFall.animations].map(stripHorizontalRootMotion),
+    [walking.animations, skill03.animations, tripleComboAttack.animations, shotInTheBackAndFall.animations],
+  );
+  const { actions, mixer } = useAnimations(clips, group);
+  const { scale, position } = SHARD_WARDEN_ANIMATED_TRANSFORM;
+  const prev = useRef({ enemyHp: state.enemyHp, round: state.round, enemyAttackCount: state.enemyAttackCount });
+
+  useEffect(() => {
+    walking.scene.traverse((child) => {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    });
+  }, [walking.scene]);
+
+  useEffect(() => {
+    actions[SHARD_WARDEN_CLIP.walking]?.reset().play();
+  }, [actions]);
+
+  // AnimatedShardWarden only mounts once `status` is already "PLAYING" (Shard Warden only
+  // appears mid-fight, after Embermaw is defeated), so the "LOBBY -> PLAYING" edge AnimatedEmbermaw
+  // watches for has already happened by the time this component exists. Every path back to
+  // "LOBBY" resets `round` to "EMBERMAW" (see initialGameState in engine.ts), so this component
+  // fully unmounts on any retry — meaning "start the entrance once, on mount" already reproduces
+  // the same replay-on-retry behavior, without needing to watch `status` at all.
+  useEffect(() => {
+    entranceStartAt.current = performance.now();
+  }, []);
+
+  useEffect(() => {
+    const onFinished = (event: { action: AnimationAction }) => {
+      if (event.action === actions[SHARD_WARDEN_CLIP.skill03] || event.action === actions[SHARD_WARDEN_CLIP.tripleComboAttack]) {
+        crossfadeTo(actions, SHARD_WARDEN_CLIP.walking, { once: false });
+      }
+    };
+    mixer.addEventListener("finished", onFinished);
+    return () => mixer.removeEventListener("finished", onFinished);
+  }, [actions, mixer]);
+
+  useEffect(() => {
+    const previous = prev.current;
+    if (state.round === "SHARD_WARDEN" && previous.round === "SHARD_WARDEN" && state.enemyHp < previous.enemyHp && state.enemyHp > 0) {
+      crossfadeTo(actions, SHARD_WARDEN_CLIP.skill03, { once: true });
+    }
+    if (previous.round === "SHARD_WARDEN" && state.round !== "SHARD_WARDEN") {
+      crossfadeTo(actions, SHARD_WARDEN_CLIP.shotInTheBackAndFall, { once: true, clampWhenFinished: true });
+    }
+    if (state.round === "SHARD_WARDEN" && previous.round === "SHARD_WARDEN" && state.enemyAttackCount > previous.enemyAttackCount) {
+      crossfadeTo(actions, SHARD_WARDEN_CLIP.tripleComboAttack, { once: true });
+    }
+    prev.current = { enemyHp: state.enemyHp, round: state.round, enemyAttackCount: state.enemyAttackCount };
+  }, [state.enemyHp, state.round, state.enemyAttackCount, actions]);
+
+  useFrame(() => {
+    if (!entranceGroup.current) return;
+    if (entranceStartAt.current === null) {
+      entranceGroup.current.position.z = SHARD_WARDEN_ENTRANCE_START_Z;
+      return;
+    }
+    const elapsed = performance.now() - entranceStartAt.current;
+    const t = Math.min(1, elapsed / SHARD_WARDEN_ENTRANCE_DURATION_MS);
+    entranceGroup.current.position.z = MathUtils.lerp(SHARD_WARDEN_ENTRANCE_START_Z, SHARD_WARDEN_REST_Z, t);
+  });
+
+  return (
+    <group ref={entranceGroup} position={[ROOM_CAMERA_X.SHARD_WARDEN, 0.4, SHARD_WARDEN_ENTRANCE_START_Z]}>
+      <Float speed={2} rotationIntensity={0.15} floatIntensity={0.3}>
+        <group ref={group} scale={scale} position={position}>
+          <primitive object={walking.scene} />
+        </group>
+        {shielded && (
+          <mesh position={[0, 0.34, 0]}>
+            <sphereGeometry args={[0.4, 32, 32]} />
+            <meshPhysicalMaterial
+              color="#8cecff"
+              transmission={0.75}
+              transparent
+              opacity={0.35}
+              roughness={0.05}
+              thickness={0.25}
+            />
+          </mesh>
+        )}
+      </Float>
+      <Sparkles count={25} position={[0, 0.35, 0]} scale={0.9} size={1.2} speed={0.4} color={color} />
+    </group>
+  );
+}
+
 useGLTF.preload(SCENE_MESH_URL);
 useGLTF.preload(activeMonsterModelUrl("EMBERMAW"));
 useGLTF.preload(activeMonsterModelUrl("SHARD_WARDEN"));
@@ -290,6 +401,15 @@ useGLTF.preload(EMBERMAW_ANIMATION_URLS.walking);
 useGLTF.preload(EMBERMAW_ANIMATION_URLS.zombieScream);
 useGLTF.preload(EMBERMAW_ANIMATION_URLS.jumpingPunch);
 useGLTF.preload(EMBERMAW_ANIMATION_URLS.fallingDown);
+useGLTF.preload(SHARD_WARDEN_ANIMATION_URLS.walking);
+useGLTF.preload(SHARD_WARDEN_ANIMATION_URLS.skill03);
+useGLTF.preload(SHARD_WARDEN_ANIMATION_URLS.tripleComboAttack);
+useGLTF.preload(SHARD_WARDEN_ANIMATION_URLS.shotInTheBackAndFall);
+
+const ANIMATED_DEFEAT_HOLD_MS: Partial<Record<GameState["round"], number>> = {
+  EMBERMAW: EMBERMAW_DEFEAT_HOLD_MS,
+  SHARD_WARDEN: SHARD_WARDEN_DEFEAT_HOLD_MS,
+};
 
 export function Arena({ state, enemyColor, preview = false, resetKey = 0 }: { state: GameState; enemyColor: string; preview?: boolean; resetKey?: number }) {
   const roomX = ROOM_CAMERA_X[state.round];
@@ -297,8 +417,9 @@ export function Arena({ state, enemyColor, preview = false, resetKey = 0 }: { st
 
   useEffect(() => {
     if (visibleRound === state.round) return;
-    if (visibleRound === "EMBERMAW") {
-      const timer = setTimeout(() => setVisibleRound(state.round), EMBERMAW_DEFEAT_HOLD_MS);
+    const holdMs = ANIMATED_DEFEAT_HOLD_MS[visibleRound];
+    if (holdMs !== undefined) {
+      const timer = setTimeout(() => setVisibleRound(state.round), holdMs);
       return () => clearTimeout(timer);
     }
     setVisibleRound(state.round);
@@ -320,6 +441,8 @@ export function Arena({ state, enemyColor, preview = false, resetKey = 0 }: { st
           <SceneMesh />
           {visibleRound === "EMBERMAW" ? (
             <AnimatedEmbermaw state={state} color={enemyColor} />
+          ) : visibleRound === "SHARD_WARDEN" ? (
+            <AnimatedShardWarden state={state} color={enemyColor} />
           ) : (
             <Enemy state={state} color={enemyColor} />
           )}
