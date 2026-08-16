@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { directMessage, encounterForRound } from "./director/defaultConfig";
 import { useRunConfiguration } from "./director/useRunConfiguration";
 import { gameReducer, initialGameState } from "./game/engine";
@@ -7,9 +7,10 @@ import type { Gesture, PlayerId, RoundId } from "./game/types";
 import { WebcamPreview } from "./hand/WebcamPreview";
 import { CloudflareRoomTransport } from "./multiplayer/CloudflareRoomTransport";
 import type { ConnectionState } from "./multiplayer/RoomTransport";
-import { Arena } from "./render/Arena";
+import { Arena, criticalAssetCount } from "./render/Arena";
 import { GestureControls } from "./ui/GestureControls";
 import { RoomGate } from "./ui/RoomGate";
+import { StartupLoader } from "./ui/StartupLoader";
 
 const keyGestures: Record<string, Gesture> = {
   "1": "FIST",
@@ -33,6 +34,7 @@ export function App() {
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [previewRound, setPreviewRound] = useState<RoundId>("EMBERMAW");
   const [previewResetKey, setPreviewResetKey] = useState(0);
+  const [loadedAssets, setLoadedAssets] = useState<Set<string>>(() => new Set());
   const roleRef = useRef<{ myPlayerId: PlayerId; isHost: boolean } | null>(null);
   const hasHostRole = (connection.status === "WAITING_FOR_PEER" || connection.status === "CONNECTED") && connection.isHost;
   const { configuration, status: directorStatus, applyRemoteConfiguration } = useRunConfiguration(hasHostRole);
@@ -171,11 +173,16 @@ export function App() {
         ? "Directing…"
         : "Classic run";
   const arenaState = isPreviewing ? { ...state, round: previewRound } : state;
+  const onAssetLoaded = useCallback((assetUrl: string) => {
+    setLoadedAssets((current) => current.has(assetUrl) ? current : new Set(current).add(assetUrl));
+  }, []);
 
   return (
     <main className="relative h-dvh w-screen overflow-hidden bg-[#08060f]">
       <section className="absolute inset-0 overflow-hidden">
-        <Arena state={arenaState} enemyColor={encounter.color} preview={isPreviewing} resetKey={previewResetKey} />
+        <Arena state={arenaState} enemyColor={encounter.color} preview={isPreviewing} resetKey={previewResetKey} onAssetLoaded={onAssetLoaded} />
+
+        <StartupLoader loadedAssets={loadedAssets.size} totalAssets={criticalAssetCount} />
 
         <header className="absolute top-4 left-4 z-20 flex items-center gap-3 rounded-2xl border border-[#342849] bg-[#0c0915c9] px-4 py-3 backdrop-blur-md">
           <div>

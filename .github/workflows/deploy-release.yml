@@ -1,0 +1,54 @@
+name: Publish release to Netlify production
+
+on:
+  push:
+    branches:
+      - "release/**"
+  workflow_dispatch: {}
+
+# Only one release may replace the production site at a time.
+concurrency:
+  group: netlify-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Sync director provider for Netlify Functions
+        run: |
+          for variable in LLM_DIRECTOR_PROVIDER LLM_DIRECTOR_TIMEOUT_MS ANTHROPIC_BASE_URL ANTHROPIC_DIRECTOR_MODEL OLLAMA_BASE_URL OLLAMA_DIRECTOR_MODEL; do
+            npx --yes netlify-cli@27.1.1 env:set "$variable" "${!variable}" --context production --secret --force --site="$NETLIFY_SITE_ID" --auth="$NETLIFY_AUTH_TOKEN"
+          done
+          npx --yes netlify-cli@27.1.1 env:set ANTHROPIC_API_KEY "$ANTHROPIC_API_KEY" --context production --secret --force --site="$NETLIFY_SITE_ID" --auth="$NETLIFY_AUTH_TOKEN"
+          npx --yes netlify-cli@27.1.1 env:set OLLAMA_API_KEY "$OLLAMA_API_KEY" --context production --secret --force --site="$NETLIFY_SITE_ID" --auth="$NETLIFY_AUTH_TOKEN"
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: 9ab4d9d6-d19a-4b86-a631-4ba83c8a6b0a
+          LLM_DIRECTOR_PROVIDER: ${{ secrets.LLM_DIRECTOR_PROVIDER }}
+          LLM_DIRECTOR_TIMEOUT_MS: ${{ secrets.LLM_DIRECTOR_TIMEOUT_MS }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
+          ANTHROPIC_DIRECTOR_MODEL: ${{ secrets.ANTHROPIC_DIRECTOR_MODEL }}
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+          OLLAMA_BASE_URL: ${{ secrets.OLLAMA_BASE_URL }}
+          OLLAMA_DIRECTOR_MODEL: ${{ secrets.OLLAMA_DIRECTOR_MODEL }}
+
+      - name: Publish to Netlify production
+        run: npx --yes netlify-cli@27.1.1 deploy --prod --dir=dist --site="$NETLIFY_SITE_ID" --auth="$NETLIFY_AUTH_TOKEN"
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: 9ab4d9d6-d19a-4b86-a631-4ba83c8a6b0a
