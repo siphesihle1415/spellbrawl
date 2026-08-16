@@ -269,6 +269,18 @@ function AnimatedEmbermaw({ state, color }: { state: GameState; color: string })
     actions[EMBERMAW_CLIP.walking]?.reset().play();
   }, [actions]);
 
+  // Embermaw is the only monster that can mount while still "LOBBY" (idle, waiting for the
+  // fight to start), which is why it normally waits for the LOBBY -> PLAYING edge below instead
+  // of starting on mount like Shard Warden/Hexwyrm do. But `START` resets straight to "PLAYING"
+  // without passing through "LOBBY" (see engine.ts), and finishing a full run unmounts and
+  // remounts this component (round leaves EMBERMAW and comes back) — so on a replay it can also
+  // mount with status already "PLAYING", where that edge never fires. Cover that case here.
+  useEffect(() => {
+    if (state.status === "PLAYING") {
+      entranceStartAt.current = performance.now();
+    }
+  }, []);
+
   useEffect(() => {
     const onFinished = (event: { action: AnimationAction }) => {
       if (event.action === actions[EMBERMAW_CLIP.zombieScream] || event.action === actions[EMBERMAW_CLIP.jumpingPunch]) {
