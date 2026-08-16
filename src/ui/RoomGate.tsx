@@ -35,7 +35,7 @@ export function RoomGate({
           {connection.status === "WAITING_FOR_PEER"
             ? "Waiting for the other spellcaster to join…"
             : connection.isHost
-              ? "Both casters connected. Press Begin POC below to start."
+              ? "Both casters connected. Press Start below to begin."
               : "Both casters connected. Waiting for the host to start."}
         </p>
       </div>

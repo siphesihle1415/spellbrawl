@@ -1,4 +1,4 @@
-# POC Implementation Plan
+# Game Implementation Plan
 
 The order is optimized to produce a playable fallback early. Each checkpoint should be demoable before moving on.
 

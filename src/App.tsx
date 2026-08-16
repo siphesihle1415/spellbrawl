@@ -7,7 +7,8 @@ import { WebcamPreview } from "./hand/WebcamPreview";
 import { CloudflareRoomTransport } from "./multiplayer/CloudflareRoomTransport";
 import type { ConnectionState } from "./multiplayer/RoomTransport";
 import { Arena, criticalAssetCount } from "./render/Arena";
-import { GestureControls } from "./ui/GestureControls";
+import { MoveMenu } from "./ui/MoveMenu";
+import { RemoteHandPreview } from "./ui/RemoteHandPreview";
 import { RoomGate } from "./ui/RoomGate";
 import { StartupLoader } from "./ui/StartupLoader";
 
@@ -25,6 +26,8 @@ const previewRooms: { round: RoundId; label: string }[] = [
   { round: "HEXWYRM", label: "Left" },
 ];
 
+const lightweightTestMode = new URLSearchParams(window.location.search).has("lite");
+
 export function App() {
   const [state, dispatch] = useReducer(gameReducer, undefined, initialGameState);
   const [transport] = useState(() => new CloudflareRoomTransport());
@@ -34,6 +37,7 @@ export function App() {
   const [previewRound, setPreviewRound] = useState<RoundId>("EMBERMAW");
   const [previewResetKey, setPreviewResetKey] = useState(0);
   const [loadedAssets, setLoadedAssets] = useState<Set<string>>(() => new Set());
+  const [now, setNow] = useState(0);
   const roleRef = useRef<{ myPlayerId: PlayerId; isHost: boolean } | null>(null);
   const hasHostRole = (connection.status === "WAITING_FOR_PEER" || connection.status === "CONNECTED") && connection.isHost;
   const { configuration, status: directorStatus, applyRemoteConfiguration } = useRunConfiguration(hasHostRole);
@@ -86,11 +90,20 @@ export function App() {
         return;
       }
       if (event.type === "PEER_LEFT") {
+        dispatch({ type: "RESET" });
         setConnection((current) =>
           current.status === "WAITING_FOR_PEER" || current.status === "CONNECTED"
             ? { status: "PEER_LEFT", code: current.code, myPlayerId: current.myPlayerId, isHost: current.isHost }
             : current,
         );
+        return;
+      }
+      if (event.type === "SESSION_END") {
+        dispatch({ type: "RESET" });
+        roleRef.current = null;
+        transport.disconnect();
+        setConnectError("The arena session was ended by the other player.");
+        setConnection({ status: "IDLE" });
         return;
       }
       if (event.type === "GESTURE") {
@@ -145,6 +158,17 @@ export function App() {
   }, [state.status, state.round, connection]);
 
   useEffect(() => {
+    if (state.status !== "PLAYING") {
+      setNow(0);
+      return;
+    }
+    const update = () => setNow(performance.now());
+    update();
+    const interval = window.setInterval(update, 100);
+    return () => window.clearInterval(interval);
+  }, [state.status]);
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const gesture = keyGestures[event.key];
       if (!gesture || event.repeat) return;
@@ -156,6 +180,7 @@ export function App() {
 
   const progress = state.enemyMaxHp === 0 ? 0 : (state.enemyHp / state.enemyMaxHp) * 100;
   const connected = connection.status === "CONNECTED";
+  const hasRoom = connection.status === "CONNECTED" || connection.status === "WAITING_FOR_PEER";
   const message = directMessage(configuration, state.message);
   const directorLabel = directorStatus === "ai"
     ? "AI Director"
@@ -165,29 +190,44 @@ export function App() {
         ? "Directing…"
         : "Classic run";
   const arenaState = isPreviewing ? { ...state, round: previewRound } : state;
+  const myPlayerId = hasRoom ? connection.myPlayerId : "PLAYER_A";
+  const otherPlayerId: PlayerId = myPlayerId === "PLAYER_A" ? "PLAYER_B" : "PLAYER_A";
+  const trackingActive = connected && state.status === "PLAYING";
   const onAssetLoaded = useCallback((assetUrl: string) => {
     setLoadedAssets((current) => current.has(assetUrl) ? current : new Set(current).add(assetUrl));
   }, []);
 
+  const exitSession = () => {
+    const role = roleRef.current;
+    if (role && connected) transport.publish({ type: "SESSION_END", playerId: role.myPlayerId });
+    window.setTimeout(() => {
+      transport.disconnect();
+      roleRef.current = null;
+      dispatch({ type: "RESET" });
+      setConnectError("");
+      setConnection({ status: "IDLE" });
+    }, connected ? 120 : 0);
+  };
+
   return (
     <main className="relative h-dvh w-screen overflow-hidden bg-[#08060f]">
       <section className="absolute inset-0 overflow-hidden">
-        <Arena state={arenaState} enemyColor={encounter.color} preview={isPreviewing} resetKey={previewResetKey} onAssetLoaded={onAssetLoaded} />
+        {lightweightTestMode
+          ? <div className="arena-lite-bg" aria-hidden="true" />
+          : <Arena state={arenaState} enemyColor={encounter.color} now={now} preview={isPreviewing} resetKey={previewResetKey} onAssetLoaded={onAssetLoaded} />}
 
-        <StartupLoader loadedAssets={loadedAssets.size} totalAssets={criticalAssetCount} />
+        {!lightweightTestMode && <StartupLoader loadedAssets={loadedAssets.size} totalAssets={criticalAssetCount} />}
 
-        <header className="absolute top-4 left-4 z-20 flex items-center gap-3 rounded-2xl border border-[#342849] bg-[#0c0915c9] px-4 py-3 backdrop-blur-md">
-          <div>
-            <p className="mb-0.5 text-[0.68rem] tracking-[0.17em] text-[#9d90bd] uppercase">Co-op gesture combat · proof of concept</p>
-            <h1 className="font-display m-0 text-[clamp(1.7rem,4vw,2.8rem)] leading-none tracking-[-0.06em]">Spell<span className="text-[#ff7758]">Brawl</span></h1>
-          </div>
-          <div className="hidden rounded-full border border-[#3c3053] bg-[#141020cc] px-3.5 py-2.5 text-xs tracking-[0.08em] sm:block">
+        <header className="game-header">
+          <h1>Spell<span>Brawl</span></h1>
+          <div className="room-chip">
             <span className="mr-2 inline-block size-[7px] rounded-full bg-[#70efb0] shadow-[0_0_10px_#70efb0]" />{" "}
             {connection.status === "CONNECTED" || connection.status === "WAITING_FOR_PEER"
               ? `Room: ${connection.code} · ${connection.isHost ? "Host" : "Guest"}`
               : "Room: —"}
-            <span className="ml-3 border-l border-[#3c3053] pl-3 text-[#b8a8d2]">{directorLabel}</span>
+            <span>{directorLabel}</span>
           </div>
+          {hasRoom && <button className="exit-session" type="button" onClick={exitSession}>Exit lobby</button>}
         </header>
 
         {isPreviewing ? (
@@ -209,7 +249,7 @@ export function App() {
           <RoomGate connection={connection} errorMessage={connectError} onCreate={connectTransport} onJoin={connectTransport} onPreview={() => setIsPreviewing(true)} />
         ) : (
           <>
-            <div className="absolute top-[104px] left-1/2 z-10 w-[min(380px,65%)] -translate-x-1/2 text-center min-[901px]:top-5">
+            <div className="enemy-hud">
               <small className="tracking-[0.15em] text-[#b8a8d2] uppercase">{encounter.title}</small>
               <h2 className="font-display my-1 text-[clamp(1.4rem,3vw,2.2rem)]">{encounter.name}</h2>
               <div className="h-[7px] rounded-[9px] border border-[#6c567e] bg-[#110d19] p-px">
@@ -223,12 +263,22 @@ export function App() {
               )}
             </div>
 
-            <div className="absolute top-[190px] left-4 z-10 flex flex-col items-start gap-2 min-[901px]:top-[124px]">
-              <div className="rounded-full border border-[#392e4c] bg-[#0c0915cc] px-3 py-2.5 text-[0.7rem] tracking-[0.08em] uppercase backdrop-blur-sm">Round {state.roundNumber} / 3</div>
-              <div className="rounded-full border border-[#392e4c] bg-[#0c0915cc] px-3 py-2.5 text-[0.7rem] tracking-[0.08em] text-[#e5b6ff] uppercase backdrop-blur-sm">✦ Shared link: {"◆".repeat(state.sharedHp)}{"◇".repeat(5 - state.sharedHp)}</div>
+            <div className="team-status">
+              <div>Round {state.roundNumber} / 3</div>
+              <div className="shared-hp"><span><b>Shared HP</b><em>{state.sharedHp} / 5</em></span><div><i style={{ width: `${state.sharedHp * 20}%` }} /></div></div>
             </div>
 
-            <div className="absolute bottom-[44dvh] left-1/2 z-10 w-[min(700px,calc(100%_-_32px))] -translate-x-1/2 rounded-xl border border-[#3b2d50] bg-[#0c0915df] px-5 py-3.5 text-center text-sm text-[#ded4ef] backdrop-blur-md min-[901px]:bottom-6">{message}</div>
+            <div className="combat-message">{message}</div>
+
+            <MoveMenu state={state} playerId={myPlayerId} now={now} />
+
+            <div className="player-cameras">
+              <WebcamPreview playerLabel={myPlayerId === "PLAYER_A" ? "Player 1" : "Player 2"} active={trackingActive} onGesture={(gesture) => castGesture(gesture, performance.now())} />
+              <RemoteHandPreview playerLabel={otherPlayerId === "PLAYER_A" ? "Player 1" : "Player 2"} active={trackingActive} gesture={state.players[otherPlayerId].lastGesture} />
+            </div>
+
+            {state.sharedHp <= 2 && state.status === "PLAYING" && <div className="low-health-vignette" aria-hidden="true" />}
+            {state.effect?.kind === "PLAYER_HIT" && <div key={state.effect.id} className="damage-flash" aria-hidden="true" />}
 
             {state.status !== "PLAYING" && (
               <div className="absolute inset-0 z-[15] grid place-content-center bg-[radial-gradient(circle,#160f27aa,#08060fef_70%)] text-center">
@@ -236,23 +286,13 @@ export function App() {
                 <h2 className="font-display mt-2 mb-[22px] text-[clamp(2.4rem,7vw,5rem)]">{state.status === "VICTORY" ? "Victory" : state.status === "DEFEAT" ? "Defeat" : "Enter the arena"}</h2>
                 {connection.isHost ? (
                   <button className="justify-self-center rounded-full border border-[#ff9a6a] bg-linear-to-br from-[#ffd376] to-[#ff7258] px-[22px] py-3 font-bold text-[#180b11] transition-transform hover:scale-105" type="button" onClick={() => dispatch({ type: state.status === "LOBBY" ? "START" : "RESET" })}>
-                    {state.status === "LOBBY" ? "Begin POC" : "Return to lobby"}
+                    {state.status === "LOBBY" ? "Start" : "Return to lobby"}
                   </button>
                 ) : (
                   <p className="m-0 text-[0.7rem] tracking-[0.15em] text-[#b7a6d1] uppercase">Waiting for the host…</p>
                 )}
               </div>
             )}
-
-            <aside className="absolute right-3 bottom-3 left-3 z-20 grid max-h-[41dvh] grid-cols-2 gap-2 overflow-y-auto min-[901px]:top-4 min-[901px]:right-4 min-[901px]:bottom-auto min-[901px]:left-auto min-[901px]:flex min-[901px]:max-h-[calc(100dvh_-_32px)] min-[901px]:w-[340px] min-[901px]:flex-col min-[901px]:gap-3">
-              <WebcamPreview onGesture={(gesture) => castGesture(gesture, performance.now())} />
-              <GestureControls onGesture={(gesture) => castGesture(gesture, performance.now())} />
-              {connection.isHost && (
-                <button className="col-span-2 cursor-pointer rounded-[10px] border border-dashed border-[#653c45] bg-[#0c0915bb] p-2.5 text-[0.68rem] text-[#b9979d] backdrop-blur-sm min-[901px]:col-auto" type="button" onClick={() => dispatch({ type: "ENEMY_ATTACK", at: performance.now() })}>
-                  Simulate enemy attack
-                </button>
-              )}
-            </aside>
           </>
         )}
       </section>

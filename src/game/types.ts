@@ -31,6 +31,21 @@ export type PlayerState = {
   fistPrimedUntil: number;
 };
 
+export type CombatEffectKind =
+  | "FIREBOLT"
+  | "SHIELD"
+  | "BARRIER"
+  | "ARMOR_BREAK"
+  | "STARFALL"
+  | "PLAYER_HIT"
+  | "ENEMY_EMERGE";
+
+export type CombatEffect = {
+  id: number;
+  kind: CombatEffectKind;
+  playerId?: PlayerId;
+};
+
 export type GameState = {
   status: GameStatus;
   round: RoundId;
@@ -43,6 +58,7 @@ export type GameState = {
   players: Record<PlayerId, PlayerState>;
   recentGestures: TimedGesture[];
   message: string;
+  effect?: CombatEffect;
 };
 
 export type GameAction =

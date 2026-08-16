@@ -41,17 +41,15 @@ The core gesture set is deliberately small:
 - `OPEN_PALM`
 - `POINT`
 - `PINCH`
-- `HANDS_APART`
-- `THRUST`
 
 Normal spells:
 
-- **Firebolt** — `FIST → THRUST`
+- **Firebolt** — `FIST → OPEN_PALM`
 - **Arcane Shield** — `OPEN_PALM`
 
 Boss finisher:
 
-- **Starfall** — Player A holds `FIST`, Player B performs `HANDS_APART`, then Player A performs `THRUST`
+- **Starfall** — Player A holds `FIST`, Player B performs `PINCH`, then Player A performs `OPEN_PALM`
 
 ---
 
@@ -140,14 +138,6 @@ POINT
 PINCH
 ```
 
-Add:
-
-```text
-THRUST
-```
-
-as the first motion gesture.
-
 Use normalized hand proportions instead of pixel distances.
 
 Example:
@@ -228,7 +218,7 @@ Gesture:
 ```text
 FIST
   ↓
-THRUST
+OPEN_PALM
   ↓
 FIREBOLT
 ```
@@ -309,7 +299,7 @@ Players coordinate:
 
 ```text
 Player A: POINT
-Player B: FIST + THRUST
+Player B: FIST + OPEN_PALM
 ```
 
 within a short timing window.
@@ -417,7 +407,7 @@ FIST — HOLD
 Player B:
 
 ```text
-HANDS_APART
+PINCH
 ```
 
 Then Player A:
@@ -493,9 +483,7 @@ Example output:
 
 The LLM may choose from a fixed vocabulary of:
 
-- enemy names
 - titles
-- elemental themes
 - weaknesses
 - gesture recipes
 - spell names

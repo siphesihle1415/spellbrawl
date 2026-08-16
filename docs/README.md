@@ -1,8 +1,8 @@
-# SpellBrawl POC
+# SpellBrawl
 
 This directory defines the smallest playable proof of concept for SpellBrawl.
 
-The POC proves four things:
+The game is built around four things:
 
 1. A player can use webcam hand gestures to cast spells.
 2. Two devices can join one room and exchange semantic game events.
@@ -11,13 +11,13 @@ The POC proves four things:
 
 ## Documents
 
-- [Scope](scope.md) — what is in and out of the POC.
+- [Scope](scope.md) — what is in and out of the game.
 - [Architecture](architecture.md) — runtime boundaries and data flow.
 - [Implementation plan](plan.md) — time-boxed build sequence and checkpoints.
 - [Contracts](contracts.md) — shared events, state, gestures, and encounter configuration.
 - [Validation](validation.md) — acceptance checks, demo rehearsal, and fallback behavior.
 
-## POC success condition
+## Success condition
 
 Two people on separate devices can create and join a room, use `FIST → OPEN_PALM` to cast Firebolt, use `OPEN_PALM` to defend, complete Embermaw and Shard Warden, perform the Hexwyrm co-op mechanics, and finish with Starfall.
 
@@ -30,6 +30,6 @@ npm install
 npm run dev
 ```
 
-Click **Begin POC**, then use the gesture buttons. Keyboard shortcuts `1`–`5` control Player A and `Shift+1`–`Shift+5` control the simulated Player B. The controls map to `FIST`, `OPEN_PALM`, `POINT`, `PINCH`, and `HANDS_APART` in that order.
+Click **Start**, then enable the camera to cast with hand tracking. Keyboard shortcuts `1`–`5` remain available for local testing and map to `FIST`, `OPEN_PALM`, `POINT`, `PINCH`, and `HANDS_APART` in that order.
 
 Implemented now: deterministic three-round combat, shared HP, enemy attacks, co-op recipes, a basic R3F arena, MediaPipe hand landmarks, normalized gesture geometry, temporal confirmation, keyboard fallback controls, tests, and a multiplayer adapter contract. Cross-device room transport is the next integration step.

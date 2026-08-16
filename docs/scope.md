@@ -1,4 +1,4 @@
-# POC Scope
+# Game Scope
 
 ## In scope
 
@@ -33,4 +33,4 @@
 |---|---|---|
 | Firebolt | `FIST → OPEN_PALM` | Damages an exposed enemy |
 | Arcane Shield | `OPEN_PALM` | Blocks incoming damage |
-| Starfall | Player A holds `FIST`; Player B uses `HANDS_APART`; Player A uses `OPEN_PALM` | Ends the Hexwyrm encounter |
+| Starfall | Player A holds `FIST`; Player B uses `PINCH`; Player A uses `OPEN_PALM` | Ends the Hexwyrm encounter |

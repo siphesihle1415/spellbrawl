@@ -8,6 +8,7 @@ export type SemanticRoomEvent =
   | { type: "GESTURE"; playerId: PlayerId; gesture: Gesture; at: number }
   | { type: "STATE_SYNC"; state: GameState }
   | { type: "DIRECTOR_SYNC"; configuration: RunConfiguration; source: DirectorSource }
+  | { type: "SESSION_END"; playerId: PlayerId }
   | { type: "PEER_LEFT" };
 
 export type ConnectionState =

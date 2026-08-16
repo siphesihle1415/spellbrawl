@@ -1,4 +1,4 @@
-# POC Validation and Demo Checklist
+# Game Validation and Demo Checklist
 
 ## Functional checks
 
@@ -38,5 +38,5 @@
 4. Coordinate Shard Warden shield break, then defeat it.
 5. Block Hexwyrm's breath together.
 6. Perform two armor breaks.
-7. Hold `FIST`, use `HANDS_APART`, then thrust to trigger Starfall.
+7. Player 1 holds `FIST`, Player 2 uses `PINCH`, then Player 1 raises `OPEN_PALM` to trigger Starfall.
 8. If AI or webcam tracking fails, use the default encounter config and the documented gesture fallback/debug controls.

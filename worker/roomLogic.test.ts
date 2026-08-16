@@ -247,4 +247,19 @@ describe("RoomLogic", () => {
     logic.onClose(second as never);
     expect(messagesOf(first)).toContainEqual({ type: "PEER_LEFT" });
   });
+
+  it("relays a player-authenticated session end to the peer", () => {
+    const room = new FakeRoom();
+    const logic = new RoomLogic(room as never);
+    const host = new FakeConnection("host-1");
+    const guest = new FakeConnection("guest-1");
+    room.add(host);
+    logic.onConnect(host as never);
+    room.add(guest);
+    logic.onConnect(guest as never);
+
+    logic.onMessage(JSON.stringify({ type: "SESSION_END", playerId: "PLAYER_A" }), guest as never);
+
+    expect(messagesOf(host)).toContainEqual({ type: "SESSION_END", playerId: "PLAYER_B" });
+  });
 });

@@ -1,4 +1,4 @@
-# POC Contracts
+# Game Contracts
 
 ## Gesture enum
 
@@ -47,7 +47,7 @@ type GameState = {
 - Shard Warden requires `POINT` from one player and `FIST → OPEN_PALM` from the other within a short timing window while its shield is active.
 - Hexwyrm's breath attack requires both players to use `OPEN_PALM` within roughly one second.
 - Hexwyrm armor breaks when one player uses `POINT` and the other uses `PINCH`; repeat twice.
-- Starfall requires Player A to hold `FIST`, Player B to use `HANDS_APART`, and Player A to use `OPEN_PALM`.
+- Starfall requires Player A to hold `FIST`, Player B to use `PINCH`, and Player A to use `OPEN_PALM`.
 - The engine, not the LLM, owns all damage and phase transitions.
 
 ## AI encounter configuration

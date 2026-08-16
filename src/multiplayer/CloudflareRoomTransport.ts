@@ -65,6 +65,5 @@ export class CloudflareRoomTransport implements RoomTransport {
   disconnect(): void {
     this.socket?.close();
     this.socket = null;
-    this.listeners.clear();
   }
 }

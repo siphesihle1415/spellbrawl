@@ -47,10 +47,21 @@ describe("gameReducer", () => {
     gesture("PLAYER_A", "POINT"); gesture("PLAYER_B", "PINCH");
     gesture("PLAYER_A", "POINT"); gesture("PLAYER_B", "PINCH");
     gesture("PLAYER_A", "FIST"); gesture("PLAYER_A", "OPEN_PALM");
-    gesture("PLAYER_A", "FIST"); gesture("PLAYER_B", "HANDS_APART"); gesture("PLAYER_A", "OPEN_PALM");
+    gesture("PLAYER_A", "FIST"); gesture("PLAYER_B", "PINCH"); gesture("PLAYER_A", "OPEN_PALM");
 
     expect(state.status).toBe("VICTORY");
     expect(state.enemyHp).toBe(0);
+  });
+
+  it("emits presentation effects for hits, shields, and projectiles", () => {
+    let state = started();
+    state = gameReducer(state, { type: "GESTURE", playerId: "PLAYER_A", gesture: "OPEN_PALM", at: 100 });
+    expect(state.effect?.kind).toBe("SHIELD");
+    state = gameReducer(state, { type: "ENEMY_ATTACK", at: 2_000 });
+    expect(state.effect?.kind).toBe("PLAYER_HIT");
+    state = gameReducer(state, { type: "GESTURE", playerId: "PLAYER_A", gesture: "FIST", at: 2_100 });
+    state = gameReducer(state, { type: "GESTURE", playerId: "PLAYER_A", gesture: "OPEN_PALM", at: 2_200 });
+    expect(state.effect).toMatchObject({ kind: "FIREBOLT", playerId: "PLAYER_A" });
   });
 
   it("adopts a synced state verbatim", () => {
