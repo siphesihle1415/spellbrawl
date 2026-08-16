@@ -2,7 +2,7 @@ import { Float, PointerLockControls, Sparkles, useAnimations, useGLTF } from "@r
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { LoopOnce, MathUtils, Mesh, Vector3, type AnimationAction, type AnimationClip, type Group, type Object3D, type PointLight } from "three";
-import { activeMonsterModelUrl, EMBERMAW_ANIMATED_TRANSFORM, EMBERMAW_ANIMATION_URLS, HEXWYRM_ANIMATED_TRANSFORM, HEXWYRM_ANIMATION_URLS, MONSTER_TRANSFORM, SHARD_WARDEN_ANIMATED_TRANSFORM, SHARD_WARDEN_ANIMATION_URLS } from "../game/monsters";
+import { activeMonsterModelUrl, EMBERMAW_ANIMATED_TRANSFORM, EMBERMAW_ANIMATION_URLS, HEXWYRM_ANIMATED_TRANSFORM, HEXWYRM_ANIMATION_URLS, MONSTER_TRANSFORM, ROUND_ANIMATION_URLS, SHARD_WARDEN_ANIMATED_TRANSFORM, SHARD_WARDEN_ANIMATION_URLS } from "../game/monsters";
 import type { GameState } from "../game/types";
 
 const SCENE_MESH_URL = "/models/spellbrawl-three-rooms-open-lighting.glb";
@@ -554,7 +554,9 @@ const ANIMATED_DEFEAT_HOLD_MS: Partial<Record<GameState["round"], number>> = {
   SHARD_WARDEN: SHARD_WARDEN_DEFEAT_HOLD_MS,
 };
 
-export function Arena({ state, enemyColor, preview = false, resetKey = 0, onAssetLoaded }: { state: GameState; enemyColor: string; preview?: boolean; resetKey?: number; onAssetLoaded?: (assetUrl: string) => void }) {
+const ALL_ANIMATION_URLS = Object.values(ROUND_ANIMATION_URLS).flat();
+
+export function Arena({ state, enemyColor, preview = false, resetKey = 0, onAssetLoaded, onRoundAssetLoaded }: { state: GameState; enemyColor: string; preview?: boolean; resetKey?: number; onAssetLoaded?: (assetUrl: string) => void; onRoundAssetLoaded?: (assetUrl: string) => void }) {
   const roomX = ROOM_CAMERA_X[state.round];
   const [visibleRound, setVisibleRound] = useState(state.round);
 
@@ -592,6 +594,11 @@ export function Arena({ state, enemyColor, preview = false, resetKey = 0, onAsse
         <Suspense fallback={null}>
           <AssetReadiness assetUrl={activeMonsterModelUrl("HEXWYRM")} onAssetLoaded={onAssetLoaded} />
         </Suspense>
+        {ALL_ANIMATION_URLS.map((assetUrl) => (
+          <Suspense key={assetUrl} fallback={null}>
+            <AssetReadiness assetUrl={assetUrl} onAssetLoaded={onRoundAssetLoaded} />
+          </Suspense>
+        ))}
         <Suspense fallback={null}>
           <SceneMesh />
           {visibleRound === "EMBERMAW" ? (
