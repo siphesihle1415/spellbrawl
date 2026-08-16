@@ -1,5 +1,29 @@
 import { expect, test } from "@playwright/test";
 
+test("startup loader waits for only the initial arena assets", async ({ page }) => {
+  const heldModelRequests: import("@playwright/test").Route[] = [];
+  await page.route("**/*.glb", (route) => { heldModelRequests.push(route); });
+
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("heading", { name: "Summoning the arena" })).toBeVisible();
+  await expect.poll(() => heldModelRequests.length).toBeGreaterThanOrEqual(5);
+
+  const requestedPaths = heldModelRequests.map((route) => new URL(route.request().url()).pathname);
+  expect(requestedPaths).toContain("/models/spellbrawl-three-rooms-open-lighting.glb");
+  expect(requestedPaths).toContain("/models/monsters/embermaw-walking.glb");
+  expect(requestedPaths.some((path) => path.includes("shard-warden"))).toBe(false);
+  expect(requestedPaths.some((path) => path.includes("hexwyrm"))).toBe(false);
+  expect(requestedPaths.some((path) => path.endsWith("-a.glb"))).toBe(false);
+
+  await page.waitForTimeout(15_500);
+  await expect(page.getByRole("heading", { name: "Summoning the arena" })).toBeVisible();
+  await expect(page.getByText("The arena is taking longer than expected to download.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Retry loading" })).toBeVisible();
+
+  await Promise.allSettled(heldModelRequests.map((route) => route.abort("blockedbyclient")));
+  await expect(page.getByText("Some arena assets failed to load.")).toBeVisible();
+});
+
 test("two players see the combat HUD, synced gestures, and shared session exit", async ({ browser }) => {
   const hostContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const guestContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
