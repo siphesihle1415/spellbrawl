@@ -118,14 +118,17 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
   if (action.type === "SYNC") return action.state;
   if (state.status !== "PLAYING") return state;
 
+  if (action.type === "ENEMY_ATTACK_WINDUP") {
+    return { ...state, enemyAttackCount: state.enemyAttackCount + 1, message: "The enemy winds up an attack! Raise an OPEN PALM to defend." };
+  }
+
   if (action.type === "ENEMY_ATTACK") {
-    const enemyAttackCount = state.enemyAttackCount + 1;
     const protectedPlayers = Object.values(state.players).filter((player) => player.shieldedUntil >= action.at).length;
-    if (protectedPlayers > 0) return { ...state, enemyAttackCount, message: "Arcane shield absorbs the attack." };
+    if (protectedPlayers > 0) return { ...state, message: "Arcane shield absorbs the attack." };
     const sharedHp = Math.max(0, state.sharedHp - 1);
     return sharedHp === 0
-      ? { ...state, sharedHp, enemyAttackCount, status: "DEFEAT", message: "The link is broken. Regroup and try again." }
-      : { ...state, sharedHp, enemyAttackCount, message: "Enemy attack lands! Raise an OPEN PALM to defend." };
+      ? { ...state, sharedHp, status: "DEFEAT", message: "The link is broken. Regroup and try again." }
+      : { ...state, sharedHp, message: "Enemy attack lands!" };
   }
 
   const { playerId, gesture, at } = action;

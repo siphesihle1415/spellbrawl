@@ -64,3 +64,15 @@ export const HEXWYRM_ANIMATED_TRANSFORM: { scale: number; position: [number, num
   scale: 0.2,
   position: [0, 0.3, 0],
 };
+
+// Delay between the enemy attack windup (attack clip starts) and the impact resolving
+// (shield check + shared HP loss), so the hit lands when the swing visually connects. The
+// source clips have no embedded hit-frame markers, so this is the midpoint of each clip's
+// real duration (jumping-punch 2.73s, triple-combo-attack 4.37s, crouch-charge-and-throw 7.73s).
+// Hexwyrm's clip is played back at HEXWYRM_ATTACK_TIME_SCALE (1.25x, see Arena.tsx) to fit the
+// 7s attack cadence, so its midpoint (3900ms at native speed) is scaled down to match: 3900 / 1.25.
+export const ATTACK_IMPACT_DELAY_MS: Record<RoundId, number> = {
+  EMBERMAW: 1400,
+  SHARD_WARDEN: 2200,
+  HEXWYRM: 3120,
+};

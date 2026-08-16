@@ -192,6 +192,11 @@ const HEXWYRM_REST_Z = MONSTER_Z + HEXWYRM_REST_OFFSET_Z;
 const HEXWYRM_ENTRANCE_START_OFFSET_Z = -2.5;
 const HEXWYRM_ENTRANCE_START_Z = HEXWYRM_REST_Z + HEXWYRM_ENTRANCE_START_OFFSET_Z;
 const HEXWYRM_ENTRANCE_DURATION_MS = 3000;
+// Crouch_Charge_and_Throw runs 7.73s, longer than the 7s attack cadence, which would otherwise
+// force the next windup to interrupt it before it finishes and returns to walking. Playing it
+// back 1.25x speed keeps it under the cadence with room to spare (see ATTACK_IMPACT_DELAY_MS in
+// game/monsters.ts, which is scaled down to match).
+const HEXWYRM_ATTACK_TIME_SCALE = 1.25;
 
 // Reaction clips (e.g. Jumping_Punch) bake forward lunge into the Hips root bone, which would
 // otherwise shove the whole rig toward the camera each time they play. Pin X/Z to the first
@@ -213,7 +218,7 @@ function stripHorizontalRootMotion(clip: AnimationClip): AnimationClip {
 function crossfadeTo(
   actions: Record<string, AnimationAction | null>,
   name: string,
-  options: { once: boolean; clampWhenFinished?: boolean },
+  options: { once: boolean; clampWhenFinished?: boolean; timeScale?: number },
 ) {
   const next = actions[name];
   if (!next) return;
@@ -221,6 +226,7 @@ function crossfadeTo(
     next.setLoop(LoopOnce, 1);
     next.clampWhenFinished = options.clampWhenFinished ?? false;
   }
+  next.timeScale = options.timeScale ?? 1;
   Object.entries(actions).forEach(([otherName, action]) => {
     if (otherName !== name) action?.fadeOut(CROSSFADE_SECONDS);
   });
@@ -464,7 +470,7 @@ function AnimatedHexwyrm({ state, color }: { state: GameState; color: string }) 
       crossfadeTo(actions, HEXWYRM_CLIP.shotAndFallBackward, { once: true, clampWhenFinished: true });
     }
     if (state.round === "HEXWYRM" && state.enemyAttackCount > previous.enemyAttackCount) {
-      crossfadeTo(actions, HEXWYRM_CLIP.crouchChargeAndThrow, { once: true });
+      crossfadeTo(actions, HEXWYRM_CLIP.crouchChargeAndThrow, { once: true, timeScale: HEXWYRM_ATTACK_TIME_SCALE });
     }
     prev.current = { armorBreaks: state.armorBreaks, enemyAttackCount: state.enemyAttackCount, status: state.status };
   }, [state.armorBreaks, state.round, state.enemyAttackCount, state.status, actions]);
