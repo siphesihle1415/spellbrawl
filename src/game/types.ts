@@ -16,7 +16,14 @@ export type Phase =
   | "CORE_PHASE"
   | "FUSION_FINISHER";
 
-export type GameStatus = "LOBBY" | "PLAYING" | "VICTORY" | "DEFEAT";
+export type GameStatus =
+  | "LOBBY"
+  | "DIALOGUE"
+  | "PLAYING"
+  | "MONSTER_DEFEATED"
+  | "ROUND_COMPLETE"
+  | "VICTORY"
+  | "DEFEAT";
 
 export type TimedGesture = {
   playerId: PlayerId;
@@ -55,6 +62,9 @@ export type GameState = {
   enemyMaxHp: number;
   armorBreaks: number;
   enemyAttackCount: number;
+  tutorial: boolean;
+  dialogueStep: number;
+  continueReady: Record<PlayerId, boolean>;
   players: Record<PlayerId, PlayerState>;
   recentGestures: TimedGesture[];
   message: string;
@@ -67,5 +77,7 @@ export type GameAction =
   | { type: "SYNC"; state: GameState }
   | { type: "GESTURE"; playerId: PlayerId; gesture: Gesture; at: number }
   | { type: "GESTURE_END"; playerId: PlayerId }
+  | { type: "SHOW_ROUND_COMPLETE" }
+  | { type: "CONTINUE_READY"; playerId: PlayerId }
   | { type: "ENEMY_ATTACK_WINDUP"; at: number }
   | { type: "ENEMY_ATTACK"; at: number };

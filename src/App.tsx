@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { preloadAudioAssets, useGameAudio } from "./audio/useGameAudio";
 import { directMessage, encounterForRound } from "./director/defaultConfig";
 import { useRunConfiguration } from "./director/useRunConfiguration";
-import { arenaAssetUrlsForRound, STARTUP_ASSET_URLS } from "./game/assets";
+import { arenaAssetUrlsForRound, AUDIO_ASSET_URLS, STARTUP_ASSET_URLS } from "./game/assets";
+import { encounterDialogue } from "./game/dialogue";
 import { gameReducer, initialGameState } from "./game/engine";
 import { rebaseSyncedState } from "./game/syncClock";
 import { ATTACK_IMPACT_DELAY_MS, ROUND_ANIMATION_URLS } from "./game/monsters";
@@ -11,11 +13,13 @@ import { WebcamPreview } from "./hand/WebcamPreview";
 import { CloudflareRoomTransport } from "./multiplayer/CloudflareRoomTransport";
 import type { ConnectionState } from "./multiplayer/RoomTransport";
 import { Arena } from "./render/Arena";
+import { EncounterDialogue } from "./ui/EncounterDialogue";
 import { MoveMenu } from "./ui/MoveMenu";
 import { RemoteHandPreview } from "./ui/RemoteHandPreview";
 import { RoomGate } from "./ui/RoomGate";
 import { SpellPlayground } from "./ui/SpellPlayground";
 import { RoundLoader } from "./ui/RoundLoader";
+import { RoundComplete } from "./ui/RoundComplete";
 import { StartupLoader } from "./ui/StartupLoader";
 
 const keyGestures: Record<string, Gesture> = {
@@ -25,12 +29,6 @@ const keyGestures: Record<string, Gesture> = {
   "4": "PINCH",
 };
 
-const previewRooms: { round: RoundId; label: string }[] = [
-  { round: "EMBERMAW", label: "Center" },
-  { round: "SHARD_WARDEN", label: "Right" },
-  { round: "HEXWYRM", label: "Left" },
-];
-
 const lightweightTestMode = new URLSearchParams(window.location.search).has("lite");
 
 export function App() {
@@ -39,11 +37,8 @@ export function App() {
   const [transport] = useState(() => new CloudflareRoomTransport());
   const [connection, setConnection] = useState<ConnectionState>({ status: "IDLE" });
   const [connectError, setConnectError] = useState("");
-  const [isPreviewing, setIsPreviewing] = useState(false);
   const [isSpellPlayground, setIsSpellPlayground] = useState(false);
   const [playgroundState, dispatchPlayground] = useReducer(gameReducer, undefined, () => gameReducer(initialGameState(), { type: "START" }));
-  const [previewRound, setPreviewRound] = useState<RoundId>("EMBERMAW");
-  const [previewResetKey, setPreviewResetKey] = useState(0);
   const [loadedAssets, setLoadedAssets] = useState<Set<string>>(() => new Set());
   const [assetError, setAssetError] = useState("");
   const [now, setNow] = useState(0);
@@ -63,6 +58,7 @@ export function App() {
   const spellPlaygroundRef = useRef(false);
   const hasHostRole = (connection.status === "WAITING_FOR_PEER" || connection.status === "CONNECTED") && connection.isHost;
   const { configuration, status: directorStatus, applyRemoteConfiguration } = useRunConfiguration(hasHostRole);
+  useGameAudio(state.effect?.id, state.effect?.kind, state.status);
 
   const encounter = encounterForRound(configuration, state.round);
   const displayEncounter = encounterForRound(configuration, display.round);
@@ -180,6 +176,10 @@ export function App() {
         if (roleRef.current?.isHost) dispatch({ type: "GESTURE_END", playerId: event.playerId });
         return;
       }
+      if (event.type === "PROGRESSION_CHOICE") {
+        if (roleRef.current?.isHost && event.choice === "CONTINUE") dispatch({ type: "CONTINUE_READY", playerId: event.playerId });
+        return;
+      }
       if (event.type === "STATE_SYNC") {
         dispatch({ type: "SYNC", state: rebaseSyncedState(event.state, event.sentAt, performance.now()) });
         return;
@@ -234,11 +234,17 @@ export function App() {
     // without the PLAYING check a client can report ready before the round has actually begun.
     // The debug delay above correctly resets when PLAYING starts, but a premature report here
     // would already be latched by the peer and never gets un-published.
-    if (state.status !== "PLAYING" || !enemyAssetsReady || connection.status !== "CONNECTED" || !roleRef.current) return;
+    if ((state.status !== "PLAYING" && state.status !== "DIALOGUE") || !enemyAssetsReady || connection.status !== "CONNECTED" || !roleRef.current) return;
     if (lastReportedRoundRef.current === state.round) return;
     lastReportedRoundRef.current = state.round;
     transport.publish({ type: "ROUND_READY", playerId: roleRef.current.myPlayerId, round: state.round });
   }, [state.status, enemyAssetsReady, state.round, connection, transport]);
+
+  useEffect(() => {
+    if (state.status !== "MONSTER_DEFEATED" || connection.status !== "CONNECTED" || !connection.isHost) return;
+    const timer = window.setTimeout(() => dispatch({ type: "SHOW_ROUND_COMPLETE" }), 4_200);
+    return () => window.clearTimeout(timer);
+  }, [state.status, connection]);
 
   useEffect(() => {
     if (state.status !== "PLAYING" || !bothPlayersReady || connection.status !== "CONNECTED" || !connection.isHost) return;
@@ -297,7 +303,7 @@ export function App() {
       : directorStatus === "loading"
         ? "Directing…"
         : "Classic run";
-  const arenaState = isSpellPlayground ? playgroundState : isPreviewing ? { ...state, round: previewRound } : state;
+  const arenaState = isSpellPlayground ? playgroundState : state;
   const arenaEncounter = encounterForRound(configuration, arenaState.round);
   const arenaAssets = arenaAssetUrlsForRound(arenaState.round);
   const loadedArenaAssetCount = arenaAssets.filter((url) => loadedAssets.has(url)).length;
@@ -305,7 +311,7 @@ export function App() {
   const loadedStartupAssetCount = STARTUP_ASSET_URLS.filter((url) => loadedAssets.has(url)).length;
   const myPlayerId = hasRoom ? connection.myPlayerId : "PLAYER_A";
   const otherPlayerId: PlayerId = myPlayerId === "PLAYER_A" ? "PLAYER_B" : "PLAYER_A";
-  const trackingActive = connected && (display.status === "LOBBY" || display.status === "PLAYING");
+  const trackingActive = connected && (display.status === "LOBBY" || display.status === "DIALOGUE" || display.status === "PLAYING");
   const bothCamerasReady = cameraReadyByPlayer.PLAYER_A && cameraReadyByPlayer.PLAYER_B;
   const readyCameraCount = Number(cameraReadyByPlayer.PLAYER_A) + Number(cameraReadyByPlayer.PLAYER_B);
   const onAssetLoaded = useCallback((assetUrl: string) => {
@@ -314,6 +320,11 @@ export function App() {
   const onAssetError = useCallback((error: Error) => {
     setAssetError(error.message || "A 3D asset could not be loaded.");
   }, []);
+
+  useEffect(() => {
+    const cleanups = preloadAudioAssets(AUDIO_ASSET_URLS, onAssetLoaded, onAssetError);
+    return () => cleanups.forEach((cleanup) => cleanup());
+  }, [onAssetLoaded, onAssetError]);
   const retryAssetLoading = useCallback(() => window.location.reload(), []);
 
   useEffect(() => setAssetError(""), [arenaState.round]);
@@ -342,6 +353,13 @@ export function App() {
     dispatchPlayground({ type: "RESET" });
   };
 
+  const chooseContinue = () => {
+    const role = roleRef.current;
+    if (!role) return;
+    if (role.isHost) dispatch({ type: "CONTINUE_READY", playerId: role.myPlayerId });
+    else transport.publish({ type: "PROGRESSION_CHOICE", playerId: role.myPlayerId, choice: "CONTINUE" });
+  };
+
   const clearGesture = () => {
     const role = roleRef.current;
     if (!role) return;
@@ -354,7 +372,7 @@ export function App() {
       <section className="absolute inset-0 overflow-hidden">
         {lightweightTestMode
           ? <div className="arena-lite-bg" aria-hidden="true" />
-          : <Arena state={arenaState} playerId={myPlayerId} enemyColor={arenaEncounter.color} now={now} preview={isPreviewing} resetKey={previewResetKey} onAssetLoaded={onAssetLoaded} onAssetError={onAssetError} />}
+          : <Arena state={arenaState} playerId={myPlayerId} enemyColor={arenaEncounter.color} now={now} onAssetLoaded={onAssetLoaded} onAssetError={onAssetError} />}
 
         {!lightweightTestMode && <StartupLoader loadedAssets={loadedStartupAssetCount} totalAssets={STARTUP_ASSET_URLS.length} errorMessage={assetError} onRetry={retryAssetLoading} />}
 
@@ -370,29 +388,14 @@ export function App() {
           {hasRoom && <button className="exit-session" type="button" onClick={exitSession}>Exit lobby</button>}
         </header>
 
-        {!lightweightTestMode && (isPreviewing || isSpellPlayground) && (!arenaAssetsReady || assetError) && (
+        {!lightweightTestMode && isSpellPlayground && (!arenaAssetsReady || assetError) && (
           <RoundLoader label={`Summoning ${arenaEncounter.name}…`} loadedAssets={loadedArenaAssetCount} totalAssets={arenaAssets.length} errorMessage={assetError} onRetry={retryAssetLoading} />
         )}
 
-        {isPreviewing ? (
-          <div className="absolute right-4 bottom-4 z-30 flex max-w-[calc(100%-2rem)] flex-wrap justify-end gap-2 rounded-2xl border border-[#493760] bg-[#0c0915df] p-3 text-xs backdrop-blur-md">
-            {previewRooms.map(({ round, label }) => (
-              <button
-                key={round}
-                type="button"
-                className={`rounded-full border px-3 py-2 ${previewRound === round ? "border-[#ff9a6a] bg-[#ff7758] text-[#180b11]" : "border-[#57466f] bg-[#171020] text-[#e7ddf7]"}`}
-                onClick={() => { setPreviewRound(round); setPreviewResetKey((key) => key + 1); }}
-              >
-                {label} room
-              </button>
-            ))}
-            <button id="explore-scene" type="button" className="rounded-full border border-[#70efb0] bg-[#173225] px-3 py-2 text-[#baf7d5]">Explore · WASD + mouse</button>
-            <button type="button" className="rounded-full border border-[#57466f] bg-[#171020] px-3 py-2 text-[#e7ddf7]" onClick={() => setIsPreviewing(false)}>Exit preview</button>
-          </div>
-        ) : isSpellPlayground ? (
+        {isSpellPlayground ? (
           <SpellPlayground state={playgroundState} now={now} dispatch={dispatchPlayground} onExit={closeSpellPlayground} testMode={import.meta.env.DEV && lightweightTestMode} />
         ) : !connected ? (
-          <RoomGate connection={connection} errorMessage={connectError} onCreate={connectTransport} onJoin={connectTransport} onPreview={() => setIsPreviewing(true)} onTestSpells={openSpellPlayground} />
+          <RoomGate connection={connection} errorMessage={connectError} onCreate={connectTransport} onJoin={connectTransport} onTestSpells={openSpellPlayground} />
         ) : (
           <>
             <div className="enemy-hud">
@@ -410,7 +413,7 @@ export function App() {
             </div>
 
             <div className="team-status">
-              <div>Round {display.roundNumber} / 3</div>
+              <div>{state.tutorial ? "Practice round" : `Round ${display.roundNumber} / 3`}</div>
               <div className="shared-hp"><span><b>Shared HP</b><em>{state.sharedHp} / 5</em></span><div><i style={{ width: `${state.sharedHp * 20}%` }} /></div></div>
             </div>
 
@@ -422,7 +425,7 @@ export function App() {
               <WebcamPreview
                 playerLabel={myPlayerId === "PLAYER_A" ? "Player 1" : "Player 2"}
                 active={trackingActive}
-                castingEnabled={display.status === "PLAYING"}
+                castingEnabled={display.status === "PLAYING" || display.status === "DIALOGUE"}
                 testMode={import.meta.env.DEV && lightweightTestMode}
                 onGesture={(gesture) => castGesture(gesture, performance.now())}
                 onGestureEnd={clearGesture}
@@ -437,7 +440,13 @@ export function App() {
             {state.status === "PLAYING" && (!enemyAssetsReady || assetError) && <RoundLoader label={`Summoning ${encounter.name}…`} loadedAssets={loadedEnemyAssetCount} totalAssets={enemyRoundAssets.length} errorMessage={assetError} onRetry={retryAssetLoading} />}
             {state.status === "PLAYING" && enemyAssetsReady && !assetError && !bothPlayersReady && <RoundLoader label="Waiting for the other spellcaster…" />}
 
-            {display.status !== "PLAYING" && (
+            {state.status === "DIALOGUE" && (!enemyAssetsReady || assetError) && <RoundLoader label={`Summoning ${encounter.name}…`} loadedAssets={loadedEnemyAssetCount} totalAssets={enemyRoundAssets.length} errorMessage={assetError} onRetry={retryAssetLoading} />}
+            {state.status === "DIALOGUE" && enemyAssetsReady && !assetError && !bothPlayersReady && <RoundLoader label="Waiting for the other spellcaster…" />}
+            {state.status === "DIALOGUE" && bothPlayersReady && <EncounterDialogue lines={encounterDialogue(state, configuration)} step={state.dialogueStep} />}
+            {state.status === "MONSTER_DEFEATED" && <div className="final-words"><small>Final words</small><p>{state.message}</p></div>}
+            {state.status === "ROUND_COMPLETE" && <RoundComplete state={state} playerId={myPlayerId} monsterName={encounter.name} onContinue={chooseContinue} onExit={exitSession} />}
+
+            {(display.status === "LOBBY" || display.status === "VICTORY" || display.status === "DEFEAT") && (
               <div className="absolute inset-0 z-[15] grid place-content-center bg-[radial-gradient(circle,#160f27aa,#08060fef_70%)] text-center">
                 <p className="m-0 text-[0.7rem] tracking-[0.15em] text-[#b7a6d1] uppercase">{display.status === "VICTORY" ? "The rift is sealed" : display.status === "DEFEAT" ? "The link has broken" : "Two hands. One spell."}</p>
                 <h2 className="font-display mt-2 mb-[22px] text-[clamp(2.4rem,7vw,5rem)]">{display.status === "VICTORY" ? "Victory" : display.status === "DEFEAT" ? "Defeat" : "Enter the arena"}</h2>

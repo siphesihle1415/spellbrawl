@@ -8,6 +8,7 @@ export type SemanticRoomEvent =
   | { type: "CAMERA_READY"; playerId: PlayerId; ready: boolean }
   | { type: "GESTURE"; playerId: PlayerId; gesture: Gesture; at: number }
   | { type: "GESTURE_END"; playerId: PlayerId }
+  | { type: "PROGRESSION_CHOICE"; playerId: PlayerId; choice: "CONTINUE" | "EXIT" }
   | { type: "STATE_SYNC"; state: GameState; sentAt: number }
   | { type: "DIRECTOR_SYNC"; configuration: RunConfiguration; source: DirectorSource }
   | { type: "SESSION_END"; playerId: PlayerId }

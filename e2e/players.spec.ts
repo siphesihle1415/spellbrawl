@@ -47,6 +47,11 @@ test("two players see the combat HUD, synced gestures, and shared session exit",
   await host.screenshot({ path: "test-results/connected-lobby.png", fullPage: true });
 
   await host.getByRole("button", { name: "Start" }).click();
+  await expect(host.getByRole("dialog", { name: "Encounter dialogue" })).toBeVisible();
+  await host.keyboard.press("3");
+  await guest.keyboard.press("4");
+  await host.keyboard.press("3");
+  await expect(host.getByText("Practice fight begins", { exact: false })).toBeVisible();
   await expect(host.getByText("Shared HP", { exact: true })).toBeVisible();
   await expect(guest.getByText("Shared HP", { exact: true })).toBeVisible();
   await expect(host.getByLabel("Spell moves")).toBeVisible();
@@ -73,7 +78,7 @@ test("two players see the combat HUD, synced gestures, and shared session exit",
 
   await host.keyboard.press("1");
   await host.keyboard.press("2");
-  await expect(host.getByText("2 / 3 HP", { exact: false })).toBeVisible();
+  await expect(host.getByText("1 / 2 HP", { exact: false })).toBeVisible();
   const guestShieldMove = guest.locator(".compact-spell").filter({ hasText: "Arcane Shield" });
   await host.keyboard.press("2");
   await expect(guestShieldMove).toHaveClass(/is-active/);
@@ -85,12 +90,16 @@ test("two players see the combat HUD, synced gestures, and shared session exit",
   await guestContext.close();
 });
 
-test("spell playground uses one hand tracker and drives the real spell state", async ({ page }) => {
+test("official spell playground exposes move help, one tracker, and every spell", async ({ page }) => {
   await page.goto("/?lite=1");
-  await page.getByRole("button", { name: "Test Spells" }).click();
+  await page.getByRole("button", { name: "Practice Spells" }).click();
 
   await expect(page.getByRole("heading", { name: "Spell Playground" })).toBeVisible();
   await expect(page.locator(".hand-card")).toHaveCount(1);
+  await page.getByRole("button", { name: "Open move help" }).click();
+  await expect(page.getByRole("dialog", { name: "Move help" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Move help" }).locator(".spell-card.is-available .spell-state.is-ready")).not.toHaveCount(0);
+  await page.getByRole("button", { name: "Close move help" }).click();
   await page.getByLabel("Player 1 hand tracking").getByRole("button", { name: "Grant camera access" }).click();
 
   const spellPicker = page.getByLabel("Choose a spell to test");

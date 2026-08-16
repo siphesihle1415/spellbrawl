@@ -12,6 +12,7 @@ const FIREBOLT_WINDOW = 3_000;
 // laggy connection, instead of losing the block purely to latency they can't control.
 export const SHIELD_WINDOW_MS = 3_500;
 const MEMORY_WINDOW = 2_000;
+export const DIALOGUE_LINE_COUNT = 3;
 
 const withEffect = (
   state: GameState,
@@ -37,6 +38,9 @@ export const initialGameState = (): GameState => ({
   enemyMaxHp: encounters.EMBERMAW.hp,
   armorBreaks: 0,
   enemyAttackCount: 0,
+  tutorial: false,
+  dialogueStep: 0,
+  continueReady: { PLAYER_A: false, PLAYER_B: false },
   players: emptyPlayers(),
   recentGestures: [],
   message: "Gather both spellcasters, then begin.",
@@ -58,30 +62,38 @@ const hasGesture = (
   (item) => item.gesture === gesture && item.at >= since && item.playerId !== exceptPlayer,
 );
 
-const enterRound = (state: GameState, round: "SHARD_WARDEN" | "HEXWYRM"): GameState => {
+const enterRound = (state: GameState, round: "EMBERMAW" | "SHARD_WARDEN" | "HEXWYRM", tutorial = false): GameState => {
   const encounter = encounters[round];
-  return withEffect({
+  return {
     ...state,
+    status: "DIALOGUE",
     round,
-    roundNumber: round === "SHARD_WARDEN" ? 2 : 3,
-    phase: round === "SHARD_WARDEN" ? "SHIELDED" : "BREATH_ATTACK",
-    enemyHp: encounter.hp,
-    enemyMaxHp: encounter.hp,
+    roundNumber: round === "EMBERMAW" ? 1 : round === "SHARD_WARDEN" ? 2 : 3,
+    phase: round === "EMBERMAW" ? "ACTIVE" : round === "SHARD_WARDEN" ? "SHIELDED" : "BREATH_ATTACK",
+    enemyHp: tutorial ? 2 : encounter.hp,
+    enemyMaxHp: tutorial ? 2 : encounter.hp,
     armorBreaks: 0,
+    tutorial,
+    dialogueStep: 0,
+    continueReady: { PLAYER_A: false, PLAYER_B: false },
     players: emptyPlayers(),
     recentGestures: [],
-    message: round === "SHARD_WARDEN"
-      ? "The Warden is shielded: one POINTS while the other casts Firebolt."
-      : "The Hexwyrm inhales: both players raise OPEN PALM!",
-  }, "ENEMY_EMERGE");
+    message: tutorial ? "Practice begins after the introductions." : `${encounter.name} has entered the arena.`,
+    effect: { id: (state.effect?.id ?? 0) + 1, kind: "ENEMY_EMERGE" },
+  };
 };
 
 const applyDamage = (state: GameState, damage: number, playerId?: PlayerId): GameState => {
   const enemyHp = Math.max(0, state.enemyHp - damage);
   if (enemyHp > 0) return withEffect({ ...state, enemyHp, message: "Firebolt strikes true!" }, "FIREBOLT", playerId);
-  if (state.round === "EMBERMAW") return enterRound(state, "SHARD_WARDEN");
-  if (state.round === "SHARD_WARDEN") return enterRound(state, "HEXWYRM");
-  return withEffect({ ...state, enemyHp: 0, status: "VICTORY", message: "STARFALL! The Hexwyrm is undone." }, "STARFALL", playerId);
+  const finalWords = state.tutorial
+    ? "Embermaw: Your bond has teeth. Now face the true hunt."
+    : state.round === "EMBERMAW"
+      ? "Embermaw: The flame remembers your names…"
+      : state.round === "SHARD_WARDEN"
+        ? "Shard Warden: The rift will not remain unguarded…"
+        : "The Hexwyrm: Even fallen, I echo beyond the veil…";
+  return withEffect({ ...state, enemyHp: 0, status: "MONSTER_DEFEATED", message: finalWords }, state.round === "HEXWYRM" ? "STARFALL" : "FIREBOLT", playerId);
 };
 
 const handleBossGesture = (
@@ -132,7 +144,7 @@ const handleBossGesture = (
 
 export function gameReducer(state: GameState, action: GameAction): GameState {
   if (action.type === "RESET") return initialGameState();
-  if (action.type === "START") return { ...initialGameState(), status: "PLAYING", message: "Embermaw attacks! Cast FIST → OPEN PALM." };
+  if (action.type === "START") return enterRound(initialGameState(), "EMBERMAW", true);
   if (action.type === "SYNC") return action.state;
   if (action.type === "GESTURE_END") {
     return {
@@ -141,6 +153,30 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         ...state.players,
         [action.playerId]: { ...state.players[action.playerId], lastGesture: undefined },
       },
+    };
+  }
+  if (action.type === "SHOW_ROUND_COMPLETE" && state.status === "MONSTER_DEFEATED") {
+    return state.round === "HEXWYRM" && !state.tutorial
+      ? { ...state, status: "VICTORY", message: "STARFALL! The Hexwyrm is undone. The rift is sealed." }
+      : { ...state, status: "ROUND_COMPLETE", continueReady: { PLAYER_A: false, PLAYER_B: false }, message: state.tutorial ? "Practice complete. Both players must choose Continue." : `${encounters[state.round].name} defeated. Choose your path together.` };
+  }
+  if (action.type === "CONTINUE_READY" && state.status === "ROUND_COMPLETE") {
+    const continueReady = { ...state.continueReady, [action.playerId]: true };
+    if (!continueReady.PLAYER_A || !continueReady.PLAYER_B) return { ...state, continueReady };
+    if (state.tutorial) return enterRound({ ...state, continueReady }, "EMBERMAW");
+    if (state.round === "EMBERMAW") return enterRound({ ...state, continueReady }, "SHARD_WARDEN");
+    return enterRound({ ...state, continueReady }, "HEXWYRM");
+  }
+  if (state.status === "DIALOGUE" && action.type === "GESTURE") {
+    if (state.dialogueStep + 1 < DIALOGUE_LINE_COUNT) {
+      return { ...state, dialogueStep: state.dialogueStep + 1, players: { ...state.players, [action.playerId]: { ...state.players[action.playerId], lastGesture: action.gesture } } };
+    }
+    return {
+      ...state,
+      status: "PLAYING",
+      dialogueStep: DIALOGUE_LINE_COUNT,
+      players: { ...state.players, [action.playerId]: { ...state.players[action.playerId], lastGesture: action.gesture } },
+      message: state.tutorial ? "Practice fight begins — your shared health cannot fall." : "The fight begins now!",
     };
   }
   if (state.status !== "PLAYING") return state;
@@ -152,11 +188,14 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
   if (action.type === "ENEMY_ATTACK") {
     const protectedPlayers = Object.values(state.players).filter((player) => player.shieldedUntil >= action.at).length;
     if (protectedPlayers > 0) return withEffect({ ...state, message: "Arcane shield absorbs the attack." }, "SHIELD");
+    if (state.tutorial) return withEffect({ ...state, message: "Practice ward restored your link. Try OPEN PALM before the next hit." }, "PLAYER_HIT");
     const sharedHp = Math.max(0, state.sharedHp - 1);
     return sharedHp === 0
       ? withEffect({ ...state, sharedHp, status: "DEFEAT", message: "The link is broken. Regroup and try again." }, "PLAYER_HIT")
       : withEffect({ ...state, sharedHp, message: "Enemy attack lands! Raise an OPEN PALM to defend." }, "PLAYER_HIT");
   }
+
+  if (action.type !== "GESTURE") return state;
 
   const { playerId, gesture, at } = action;
   const history = remember(state.recentGestures, playerId, gesture, at);

@@ -33,6 +33,7 @@ function stateForSpell(spell: PlaygroundSpell): GameState {
   const encounter = encounters[spell.round];
   return {
     ...state,
+    status: "PLAYING",
     round: spell.round,
     roundNumber: spell.round === "EMBERMAW" ? 1 : spell.round === "SHARD_WARDEN" ? 2 : 3,
     phase: spell.phase,
@@ -50,6 +51,10 @@ export function SpellPlayground({ state, now, dispatch, onExit, testMode }: { st
   const stepRef = useRef(0);
   const effectIdRef = useRef(0);
   stateRef.current = state;
+
+  useEffect(() => {
+    dispatch({ type: "SYNC", state: stateForSpell(playgroundSpells[0]) });
+  }, [dispatch]);
 
   const selectSpell = (spell: PlaygroundSpell) => {
     selectedRef.current = spell;
@@ -122,7 +127,7 @@ export function SpellPlayground({ state, now, dispatch, onExit, testMode }: { st
   return (
     <div className="spell-playground-ui">
       <div className="playground-heading">
-        <div><small>Temporary practice arena · All spells</small><h2>Spell Playground</h2><p>Select a spell, then perform its gestures with your tracked hand.</p></div>
+        <div><small>Official practice arena · All spells</small><h2>Spell Playground</h2><p>Select a spell, open the move help when needed, then perform its gestures with your tracked hand.</p></div>
         <button type="button" onClick={onExit}>Exit playground</button>
       </div>
 

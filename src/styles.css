@@ -195,6 +195,8 @@
 .compact-recipe .gesture-glyph { font-size: .8rem; filter: drop-shadow(0 0 4px var(--move-color)); }
 .compact-status { width: 38px; color: var(--move-color); font-size: .39rem; letter-spacing: .03em; text-align: right; text-transform: uppercase; }
 .compact-spell.is-disabled { border-color: #282932; filter: grayscale(1); opacity: .36; }
+.compact-spell.is-available { box-shadow: inset 0 0 16px color-mix(in srgb, var(--move-color) 12%, transparent); }
+.compact-spell.is-available .compact-symbol { border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--move-color) 30%, transparent), transparent 68%); }
 .compact-spell.is-active { animation: spell-pulse .9s ease-in-out infinite; border-color: var(--move-color); }
 
 .spell-help-overlay { position: fixed; z-index: 70; inset: 0; display: grid; place-items: center; background: #03030bd9; padding: 16px; backdrop-filter: blur(14px); }
@@ -261,6 +263,7 @@
 .player-cameras.is-lobby { z-index: 20; }
 
 .spell-playground-ui { position: absolute; z-index: 18; inset: 0; pointer-events: none; }
+.spell-playground-ui .move-menu, .spell-playground-ui .spell-help-overlay { pointer-events: auto; }
 .playground-heading {
   position: absolute;
   top: 78px;
@@ -310,6 +313,42 @@
 .playground-recipe .gesture-glyph { font-size: 1rem; }
 .playground-recipe small { color: #817690; font-size: .5rem; }
 .playground-camera { position: absolute; bottom: 16px; left: 16px; pointer-events: auto; }
+
+.encounter-dialogue, .round-complete {
+  position: absolute;
+  z-index: 32;
+  right: 50%;
+  bottom: 16%;
+  width: min(680px, calc(100vw - 32px));
+  transform: translateX(50%);
+  border: 1px solid #8d5ec1;
+  border-radius: 18px;
+  background: linear-gradient(145deg, #10091aee, #06070def);
+  box-shadow: 0 20px 80px #000d, inset 0 0 30px #7c3da51a;
+  padding: 22px 26px;
+  text-align: center;
+  backdrop-filter: blur(18px);
+}
+.encounter-dialogue small, .round-complete > small, .final-words small { color: #c598ff; font-size: .6rem; letter-spacing: .18em; text-transform: uppercase; }
+.encounter-dialogue h2, .round-complete h2 { margin: 6px 0 8px; color: #ffcc8c; font-family: var(--font-display); font-size: clamp(1.25rem, 3vw, 2rem); }
+.encounter-dialogue p { min-height: 48px; margin: 0; color: #eee6f8; font-size: clamp(.85rem, 1.6vw, 1.08rem); line-height: 1.65; }
+.encounter-dialogue > div { display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: 15px; color: #a99ab9; font-size: .63rem; text-transform: uppercase; }
+.encounter-dialogue .gesture-glyph { color: #79e7ff; font-size: 1.3rem; }
+.encounter-dialogue b { color: #e7ccff; }
+.final-words { position: absolute; z-index: 31; bottom: 17%; left: 50%; width: min(620px, calc(100vw - 32px)); transform: translateX(-50%); border: 1px solid #71394b; border-radius: 16px; background: #10070de8; padding: 18px 24px; text-align: center; backdrop-filter: blur(16px); }
+.final-words p { margin: 8px 0 0; color: #f2d9dc; font-family: var(--font-display); font-size: clamp(.9rem, 2vw, 1.25rem); }
+.round-complete { top: 50%; bottom: auto; transform: translate(50%, -50%); }
+.round-complete > p { margin: 0 auto 16px; max-width: 520px; color: #bdb0ca; font-size: .78rem; line-height: 1.55; }
+.progression-votes { display: flex; justify-content: center; gap: 10px; margin: 15px 0; }
+.progression-votes span { border: 1px solid #493b5a; border-radius: 999px; padding: 7px 12px; color: #8e819e; font-size: .6rem; text-transform: uppercase; }
+.progression-votes span.is-ready { border-color: #4fcf8b; color: #8ff0b8; box-shadow: 0 0 12px #48df8733; }
+.round-actions { display: flex; justify-content: center; gap: 10px; }
+.round-actions button { cursor: pointer; border: 1px solid #ff9a6a; border-radius: 999px; background: linear-gradient(135deg, #ffd376, #ff7258); padding: 10px 18px; color: #180b11; font-size: .68rem; font-weight: 700; }
+.round-actions button:disabled { cursor: wait; opacity: .55; }
+.round-actions button.is-exit { border-color: #6e4c62; background: #24111c; color: #dcb8ca; }
+.round-fact { width: min(420px, calc(100vw - 40px)); margin-top: 25px; border: 1px solid #3e3150; border-radius: 12px; background: #0d0916c9; padding: 12px 16px; text-align: left; }
+.round-fact small { color: #9bdbff; font-size: .52rem; letter-spacing: .15em; text-transform: uppercase; }
+.round-fact p { margin: 7px 0 0; color: #d7cfe2; font-size: .68rem; line-height: 1.5; }
 
 .hand-card {
   width: min(225px, 18vw);
@@ -383,5 +422,6 @@
   .playground-recipe small { display: none; }
   .playground-camera { bottom: 8px; left: 8px; }
   .playground-camera .hand-card { width: min(210px, calc(100vw - 16px)); }
+  .encounter-dialogue, .round-complete { padding: 16px; }
   .combat-message { bottom: 122px; width: calc(100% - 16px); padding: 8px; font-size: .64rem; }
 }
