@@ -65,6 +65,16 @@ export const HEXWYRM_ANIMATED_TRANSFORM: { scale: number; position: [number, num
   position: [0, 0.3, 0],
 };
 
+// The animated clip URLs a round's enemy needs before it can actually appear on screen. Used to
+// gate the attack cadence on the enemy model being loaded, rather than firing attacks the instant
+// the round changes (see engine.ts enterRound, which flips `round` synchronously) while the GLTFs
+// for the new monster are still in flight.
+export const ROUND_ANIMATION_URLS: Record<RoundId, string[]> = {
+  EMBERMAW: Object.values(EMBERMAW_ANIMATION_URLS),
+  SHARD_WARDEN: Object.values(SHARD_WARDEN_ANIMATION_URLS),
+  HEXWYRM: Object.values(HEXWYRM_ANIMATION_URLS),
+};
+
 // Delay between the enemy attack windup (attack clip starts) and the impact resolving
 // (shield check + shared HP loss), so the hit lands when the swing visually connects. The
 // source clips have no embedded hit-frame markers, so this is the midpoint of each clip's
