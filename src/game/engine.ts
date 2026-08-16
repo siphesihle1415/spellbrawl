@@ -2,7 +2,14 @@ import { encounters } from "./config";
 import type { GameAction, GameState, Gesture, PlayerId, TimedGesture } from "./types";
 
 const COMBO_WINDOW = 1_500;
-const SHIELD_WINDOW = 1_200;
+// A raised palm must still be "shielded" when the host's ENEMY_ATTACK resolves. For a remote
+// guest, the windup cue arrives after network latency and their palm-raise travels back over
+// the same link before the host timestamps it — that round trip eats directly into their
+// reaction budget, while the host (zero-latency, same clock) keeps the full window. Sized above
+// the longest attack's impact delay (Hexwyrm, 3,120ms — see ATTACK_IMPACT_DELAY_MS in
+// game/monsters.ts) so a guest who reacts the instant they see the cue stays covered even on a
+// laggy connection, instead of losing the block purely to latency they can't control.
+const SHIELD_WINDOW = 3_500;
 const MEMORY_WINDOW = 2_000;
 
 const emptyPlayers = () => ({
