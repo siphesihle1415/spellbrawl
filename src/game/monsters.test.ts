@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ACTIVE_MONSTER_VARIANT, EMBERMAW_ANIMATION_URLS, MONSTER_VARIANTS, SHARD_WARDEN_ANIMATION_URLS, activeMonsterModelUrl, resolveVariant } from "./monsters";
+import { ACTIVE_MONSTER_VARIANT, EMBERMAW_ANIMATION_URLS, HEXWYRM_ANIMATION_URLS, MONSTER_VARIANTS, SHARD_WARDEN_ANIMATION_URLS, activeMonsterModelUrl, resolveVariant } from "./monsters";
 
 describe("resolveVariant", () => {
   const variants = [
@@ -44,6 +44,17 @@ describe("SHARD_WARDEN_ANIMATION_URLS", () => {
       skill03: "/models/monsters/shard-warden-skill-03.glb",
       tripleComboAttack: "/models/monsters/shard-warden-triple-combo-attack.glb",
       shotInTheBackAndFall: "/models/monsters/shard-warden-shot-in-the-back-and-fall.glb",
+    });
+  });
+});
+
+describe("HEXWYRM_ANIMATION_URLS", () => {
+  it("points at the four compressed animation clips under public/models/monsters", () => {
+    expect(HEXWYRM_ANIMATION_URLS).toEqual({
+      walking: "/models/monsters/hexwyrm-walking.glb",
+      zombieScream: "/models/monsters/hexwyrm-zombie-scream.glb",
+      crouchChargeAndThrow: "/models/monsters/hexwyrm-crouch-charge-and-throw.glb",
+      shotAndFallBackward: "/models/monsters/hexwyrm-shot-and-fall-backward.glb",
     });
   });
 });

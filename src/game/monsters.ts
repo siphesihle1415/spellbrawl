@@ -52,3 +52,15 @@ export const SHARD_WARDEN_ANIMATED_TRANSFORM: { scale: number; position: [number
   scale: 0.2,
   position: [0, 0.3, 0],
 };
+
+export const HEXWYRM_ANIMATION_URLS = {
+  walking: "/models/monsters/hexwyrm-walking.glb",
+  zombieScream: "/models/monsters/hexwyrm-zombie-scream.glb",
+  crouchChargeAndThrow: "/models/monsters/hexwyrm-crouch-charge-and-throw.glb",
+  shotAndFallBackward: "/models/monsters/hexwyrm-shot-and-fall-backward.glb",
+} as const;
+
+export const HEXWYRM_ANIMATED_TRANSFORM: { scale: number; position: [number, number, number] } = {
+  scale: 0.2,
+  position: [0, 0.3, 0],
+};
