@@ -382,13 +382,13 @@ function AnimatedEmbermaw({ state, color }: { state: GameState; color: string })
   }, [actions]);
 
   // Embermaw is the only monster that can mount while still "LOBBY" (idle, waiting for the
-  // fight to start), which is why it normally waits for the LOBBY -> PLAYING edge below instead
-  // of starting on mount like Shard Warden/Hexwyrm do. But `START` resets straight to "PLAYING"
-  // without passing through "LOBBY" (see engine.ts), and finishing a full run unmounts and
-  // remounts this component (round leaves EMBERMAW and comes back) — so on a replay it can also
-  // mount with status already "PLAYING", where that edge never fires. Cover that case here.
+  // fight to start), which is why it normally waits for the LOBBY -> DIALOGUE/PLAYING edge below
+  // instead of starting on mount like Shard Warden/Hexwyrm do. But `START` resets straight past
+  // "LOBBY" (see engine.ts's enterRound), and finishing a full run unmounts and remounts this
+  // component (round leaves EMBERMAW and comes back) — so on a replay it can also mount with
+  // status already past "LOBBY", where that edge never fires. Cover that case here.
   useEffect(() => {
-    if (state.status === "PLAYING") {
+    if (state.status !== "LOBBY") {
       entranceStartAt.current = performance.now();
     }
   }, []);
@@ -414,7 +414,7 @@ function AnimatedEmbermaw({ state, color }: { state: GameState; color: string })
     if (state.round === "EMBERMAW" && previous.round === "EMBERMAW" && state.enemyAttackCount > previous.enemyAttackCount) {
       crossfadeTo(actions, EMBERMAW_CLIP.jumpingPunch, { once: true });
     }
-    if (previous.status === "LOBBY" && state.status === "PLAYING") {
+    if (previous.status === "LOBBY" && state.status !== "LOBBY") {
       entranceStartAt.current = performance.now();
     }
     if (state.status === "LOBBY") {
