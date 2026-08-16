@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { directMessage, encounterForRound } from "./director/defaultConfig";
 import { useRunConfiguration } from "./director/useRunConfiguration";
+import { arenaAssetUrlsForRound, STARTUP_ASSET_URLS } from "./game/assets";
 import { gameReducer, initialGameState } from "./game/engine";
 import { rebaseSyncedState } from "./game/syncClock";
 import { ATTACK_IMPACT_DELAY_MS, ROUND_ANIMATION_URLS } from "./game/monsters";
@@ -8,7 +9,7 @@ import type { Gesture, PlayerId, RoundId } from "./game/types";
 import { WebcamPreview } from "./hand/WebcamPreview";
 import { CloudflareRoomTransport } from "./multiplayer/CloudflareRoomTransport";
 import type { ConnectionState } from "./multiplayer/RoomTransport";
-import { Arena, criticalAssetCount } from "./render/Arena";
+import { Arena } from "./render/Arena";
 import { MoveMenu } from "./ui/MoveMenu";
 import { RemoteHandPreview } from "./ui/RemoteHandPreview";
 import { RoomGate } from "./ui/RoomGate";
@@ -42,10 +43,10 @@ export function App() {
   const [previewRound, setPreviewRound] = useState<RoundId>("EMBERMAW");
   const [previewResetKey, setPreviewResetKey] = useState(0);
   const [loadedAssets, setLoadedAssets] = useState<Set<string>>(() => new Set());
+  const [assetError, setAssetError] = useState("");
   const [now, setNow] = useState(0);
   const [cameraReadyByPlayer, setCameraReadyByPlayer] = useState<Record<PlayerId, boolean>>({ PLAYER_A: false, PLAYER_B: false });
   const cameraReadyRef = useRef<Record<PlayerId, boolean>>({ PLAYER_A: false, PLAYER_B: false });
-  const [loadedRoundAssets, setLoadedRoundAssets] = useState<Set<string>>(() => new Set());
   // Manual QA hook: append ?simulateLoad=6000 to hold the round loader open for that many ms
   // after every round change, regardless of real asset load speed. Real GLTF loads are fast
   // enough on localhost/warm cache that the loader rarely has a chance to appear otherwise.
@@ -62,7 +63,9 @@ export function App() {
   const { configuration, status: directorStatus, applyRemoteConfiguration } = useRunConfiguration(hasHostRole);
 
   const encounter = encounterForRound(configuration, state.round);
-  const enemyAssetsReady = lightweightTestMode || (debugDelayElapsed && ROUND_ANIMATION_URLS[state.round].every((url) => loadedRoundAssets.has(url)));
+  const enemyRoundAssets = ROUND_ANIMATION_URLS[state.round];
+  const loadedEnemyAssetCount = enemyRoundAssets.filter((url) => loadedAssets.has(url)).length;
+  const enemyAssetsReady = lightweightTestMode || (debugDelayElapsed && loadedEnemyAssetCount === enemyRoundAssets.length);
   // Attacks are host-authoritative, so it's not enough for the host's own assets to be ready:
   // a guest with a slower connection could still be staring at their own RoundLoader — which
   // covers the attack windup cue — unable to defend against a hit they can't even see coming.
@@ -293,6 +296,10 @@ export function App() {
         : "Classic run";
   const arenaState = isSpellPlayground ? playgroundState : isPreviewing ? { ...state, round: previewRound } : state;
   const arenaEncounter = encounterForRound(configuration, arenaState.round);
+  const arenaAssets = arenaAssetUrlsForRound(arenaState.round);
+  const loadedArenaAssetCount = arenaAssets.filter((url) => loadedAssets.has(url)).length;
+  const arenaAssetsReady = lightweightTestMode || loadedArenaAssetCount === arenaAssets.length;
+  const loadedStartupAssetCount = STARTUP_ASSET_URLS.filter((url) => loadedAssets.has(url)).length;
   const myPlayerId = hasRoom ? connection.myPlayerId : "PLAYER_A";
   const otherPlayerId: PlayerId = myPlayerId === "PLAYER_A" ? "PLAYER_B" : "PLAYER_A";
   const trackingActive = connected && (state.status === "LOBBY" || state.status === "PLAYING");
@@ -301,9 +308,12 @@ export function App() {
   const onAssetLoaded = useCallback((assetUrl: string) => {
     setLoadedAssets((current) => current.has(assetUrl) ? current : new Set(current).add(assetUrl));
   }, []);
-  const onRoundAssetLoaded = useCallback((assetUrl: string) => {
-    setLoadedRoundAssets((current) => current.has(assetUrl) ? current : new Set(current).add(assetUrl));
+  const onAssetError = useCallback((error: Error) => {
+    setAssetError(error.message || "A 3D asset could not be loaded.");
   }, []);
+  const retryAssetLoading = useCallback(() => window.location.reload(), []);
+
+  useEffect(() => setAssetError(""), [arenaState.round]);
 
   const exitSession = () => {
     const role = roleRef.current;
@@ -341,9 +351,9 @@ export function App() {
       <section className="absolute inset-0 overflow-hidden">
         {lightweightTestMode
           ? <div className="arena-lite-bg" aria-hidden="true" />
-          : <Arena state={arenaState} playerId={myPlayerId} enemyColor={arenaEncounter.color} now={now} preview={isPreviewing} resetKey={previewResetKey} onAssetLoaded={onAssetLoaded} onRoundAssetLoaded={onRoundAssetLoaded} />}
+          : <Arena state={arenaState} playerId={myPlayerId} enemyColor={arenaEncounter.color} now={now} preview={isPreviewing} resetKey={previewResetKey} onAssetLoaded={onAssetLoaded} onAssetError={onAssetError} />}
 
-        {!lightweightTestMode && <StartupLoader loadedAssets={loadedAssets.size} totalAssets={criticalAssetCount} />}
+        {!lightweightTestMode && <StartupLoader loadedAssets={loadedStartupAssetCount} totalAssets={STARTUP_ASSET_URLS.length} errorMessage={assetError} onRetry={retryAssetLoading} />}
 
         <header className="game-header">
           <h1>Spell<span>Brawl</span></h1>
@@ -356,6 +366,10 @@ export function App() {
           </div>
           {hasRoom && <button className="exit-session" type="button" onClick={exitSession}>Exit lobby</button>}
         </header>
+
+        {!lightweightTestMode && (isPreviewing || isSpellPlayground) && (!arenaAssetsReady || assetError) && (
+          <RoundLoader label={`Summoning ${arenaEncounter.name}…`} loadedAssets={loadedArenaAssetCount} totalAssets={arenaAssets.length} errorMessage={assetError} onRetry={retryAssetLoading} />
+        )}
 
         {isPreviewing ? (
           <div className="absolute right-4 bottom-4 z-30 flex max-w-[calc(100%-2rem)] flex-wrap justify-end gap-2 rounded-2xl border border-[#493760] bg-[#0c0915df] p-3 text-xs backdrop-blur-md">
@@ -417,8 +431,8 @@ export function App() {
             {state.sharedHp <= 2 && state.status === "PLAYING" && <div className="low-health-vignette" aria-hidden="true" />}
             {state.effect?.kind === "PLAYER_HIT" && <div key={state.effect.id} className="damage-flash" aria-hidden="true" />}
 
-            {state.status === "PLAYING" && !enemyAssetsReady && <RoundLoader label={`Summoning ${encounter.name}…`} />}
-            {state.status === "PLAYING" && enemyAssetsReady && !bothPlayersReady && <RoundLoader label="Waiting for the other spellcaster…" />}
+            {state.status === "PLAYING" && (!enemyAssetsReady || assetError) && <RoundLoader label={`Summoning ${encounter.name}…`} loadedAssets={loadedEnemyAssetCount} totalAssets={enemyRoundAssets.length} errorMessage={assetError} onRetry={retryAssetLoading} />}
+            {state.status === "PLAYING" && enemyAssetsReady && !assetError && !bothPlayersReady && <RoundLoader label="Waiting for the other spellcaster…" />}
 
             {state.status !== "PLAYING" && (
               <div className="absolute inset-0 z-[15] grid place-content-center bg-[radial-gradient(circle,#160f27aa,#08060fef_70%)] text-center">
