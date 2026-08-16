@@ -105,6 +105,7 @@ export function WebcamPreview({ onGesture, onGestureEnd, onReadyChange, active, 
   const onReadyChangeRef = useRef(onReadyChange);
   const castingEnabledRef = useRef(castingEnabled);
   const needsNeutralRef = useRef(false);
+  const permissionGrantedRef = useRef(false);
   const [status, setStatus] = useState<TrackingStatus>("idle");
   const [pose, setPose] = useState<PoseResult | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
@@ -169,6 +170,7 @@ export function WebcamPreview({ onGesture, onGestureEnd, onReadyChange, active, 
 
   useEffect(() => {
     if (!active && status !== "idle") stopTracking();
+    else if (active && status === "idle" && permissionGrantedRef.current) enableCamera();
   }, [active]);
 
   const enableCamera = async () => {
@@ -184,6 +186,7 @@ export function WebcamPreview({ onGesture, onGestureEnd, onReadyChange, active, 
     let stream: MediaStream | undefined;
     try {
       stream = await requestCamera();
+      permissionGrantedRef.current = true;
       if (runId !== runIdRef.current || !videoRef.current) {
         stream.getTracks().forEach((track) => track.stop());
         return;

@@ -55,22 +55,21 @@ export function useGameAudio(effectId: number | undefined, effectKind: CombatEff
   const previousStatus = useRef(status);
 
   useEffect(() => {
-    const startMusic = () => {
-      if (!music.current) {
-        music.current = new Audio("/audio/gamesong.mp3");
-        music.current.loop = true;
-        music.current.volume = 0.24;
-      }
-      void music.current.play().catch(() => undefined);
-    };
+    const audio = new Audio("/audio/gamesong.mp3");
+    audio.loop = true;
+    audio.volume = 0.24;
+    audio.preload = "auto";
+    audio.load();
+    music.current = audio;
+
     const click = (event: PointerEvent) => {
       if ((event.target as Element | null)?.closest("button")) synthesize("CLICK");
-      startMusic();
+      void audio.play().catch(() => undefined);
     };
     window.addEventListener("pointerdown", click);
     return () => {
       window.removeEventListener("pointerdown", click);
-      music.current?.pause();
+      audio.pause();
     };
   }, []);
 

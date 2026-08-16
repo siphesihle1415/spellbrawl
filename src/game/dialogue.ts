@@ -1,9 +1,26 @@
 import type { GameState } from "./types";
 import type { RunConfiguration } from "../director/schema";
+import { DIALOGUE_LINE_COUNT } from "./engine";
 
 export type DialogueLine = { speaker: string; text: string };
 
-export function encounterDialogue(state: GameState, configuration: RunConfiguration): DialogueLine[] {
+export function encounterDialogue(
+  state: GameState,
+  configuration: RunConfiguration,
+  aiLines?: string[],
+): DialogueLine[] {
+  const lines = staticEncounterDialogue(state, configuration);
+  if (
+    aiLines
+    && aiLines.length === DIALOGUE_LINE_COUNT
+    && aiLines.every((line) => typeof line === "string")
+  ) {
+    return lines.map((line, index) => ({ ...line, text: aiLines[index] }));
+  }
+  return lines;
+}
+
+function staticEncounterDialogue(state: GameState, configuration: RunConfiguration): DialogueLine[] {
   if (state.tutorial) {
     return [
       { speaker: "AI Director", text: "This is a protected practice duel. Your shared health cannot run out here." },

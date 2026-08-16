@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { preloadAudioAssets, useGameAudio } from "./audio/useGameAudio";
 import { directMessage, encounterForRound } from "./director/defaultConfig";
+import { useRoundDialogue } from "./director/useRoundDialogue";
 import { useRunConfiguration } from "./director/useRunConfiguration";
 import { arenaAssetUrlsForRound, AUDIO_ASSET_URLS, STARTUP_ASSET_URLS } from "./game/assets";
 import { encounterDialogue } from "./game/dialogue";
@@ -62,6 +63,13 @@ export function App() {
 
   const encounter = encounterForRound(configuration, state.round);
   const displayEncounter = encounterForRound(configuration, display.round);
+  const { linesByRound: dialogueLinesByRound, applyRemoteDialogue } = useRoundDialogue(
+    hasHostRole,
+    state.status,
+    state.tutorial,
+    state.round,
+    encounter,
+  );
   const enemyRoundAssets = ROUND_ANIMATION_URLS[state.round];
   const loadedEnemyAssetCount = enemyRoundAssets.filter((url) => loadedAssets.has(url)).length;
   const enemyAssetsReady = lightweightTestMode || (debugDelayElapsed && loadedEnemyAssetCount === enemyRoundAssets.length);
@@ -186,10 +194,14 @@ export function App() {
       }
       if (event.type === "DIRECTOR_SYNC") {
         applyRemoteConfiguration(event.configuration, event.source);
+        return;
+      }
+      if (event.type === "DIALOGUE_SYNC") {
+        applyRemoteDialogue(event.round, event.lines);
       }
     });
     return unsubscribe;
-  }, [transport, applyRemoteConfiguration, applyCameraReady, resetCameraReadiness]);
+  }, [transport, applyRemoteConfiguration, applyRemoteDialogue, applyCameraReady, resetCameraReadiness]);
 
   useEffect(() => () => transport.disconnect(), [transport]);
 
@@ -212,6 +224,12 @@ export function App() {
       });
     }
   }, [configuration, connection, directorStatus, transport]);
+
+  useEffect(() => {
+    const lines = dialogueLinesByRound[state.round];
+    if (!lines || connection.status !== "CONNECTED" || !connection.isHost) return;
+    transport.publish({ type: "DIALOGUE_SYNC", round: state.round, lines });
+  }, [dialogueLinesByRound, state.round, connection, transport]);
 
   useEffect(() => {
     if (debugSimulateLoadMs === 0) return;
@@ -322,9 +340,11 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    const cleanups = preloadAudioAssets(AUDIO_ASSET_URLS, onAssetLoaded, onAssetError);
+    // Audio failures never gate or error the loading screens: sound is not
+    // required for the arena to be playable, unlike the 3D models below.
+    const cleanups = preloadAudioAssets(AUDIO_ASSET_URLS, onAssetLoaded, () => undefined);
     return () => cleanups.forEach((cleanup) => cleanup());
-  }, [onAssetLoaded, onAssetError]);
+  }, [onAssetLoaded]);
   const retryAssetLoading = useCallback(() => window.location.reload(), []);
 
   useEffect(() => setAssetError(""), [arenaState.round]);
@@ -442,7 +462,7 @@ export function App() {
 
             {state.status === "DIALOGUE" && (!enemyAssetsReady || assetError) && <RoundLoader label={`Summoning ${encounter.name}…`} loadedAssets={loadedEnemyAssetCount} totalAssets={enemyRoundAssets.length} errorMessage={assetError} onRetry={retryAssetLoading} />}
             {state.status === "DIALOGUE" && enemyAssetsReady && !assetError && !bothPlayersReady && <RoundLoader label="Waiting for the other spellcaster…" />}
-            {state.status === "DIALOGUE" && bothPlayersReady && <EncounterDialogue lines={encounterDialogue(state, configuration)} step={state.dialogueStep} />}
+            {state.status === "DIALOGUE" && bothPlayersReady && <EncounterDialogue lines={encounterDialogue(state, configuration, dialogueLinesByRound[state.round])} step={state.dialogueStep} />}
             {state.status === "MONSTER_DEFEATED" && <div className="final-words"><small>Final words</small><p>{state.message}</p></div>}
             {state.status === "ROUND_COMPLETE" && <RoundComplete state={state} playerId={myPlayerId} monsterName={encounter.name} onContinue={chooseContinue} onExit={exitSession} />}
 

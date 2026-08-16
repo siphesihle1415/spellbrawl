@@ -16,5 +16,8 @@ export function arenaAssetUrlsForRound(round: RoundId): string[] {
 }
 
 // The first screen renders Embermaw, so these assets must be parsed before the
-// startup curtain can truthfully report that the arena is ready.
-export const STARTUP_ASSET_URLS = [...arenaAssetUrlsForRound("EMBERMAW"), ...AUDIO_ASSET_URLS];
+// startup curtain can truthfully report that the arena is ready. Audio is
+// preloaded separately and never gates or errors this curtain: browsers can
+// stall or fail media fetches for reasons that have nothing to do with the
+// arena being playable.
+export const STARTUP_ASSET_URLS = arenaAssetUrlsForRound("EMBERMAW");

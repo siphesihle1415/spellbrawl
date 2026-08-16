@@ -19,7 +19,7 @@ Open port `8888`, not the Vite port, so calls to `/.netlify/functions/director` 
 
 The initial implementation includes the deterministic three-round combat loop, a React Three Fiber arena, camera-based MediaPipe gesture tracking without a visible webcam feed, keyboard/debug gesture controls, and a multiplayer integration boundary.
 
-Each player can use keys `1`–`4` for local testing. They map to `FIST`, `OPEN_PALM`, `POINT`, and `PINCH`; gestures are attributed to that browser's assigned player.
+Each player can use keys `1`–`4` for local testing. They map to `FIST`, `OPEN_PALM`, `POINT`, and `PINCH`; gestures are attributed to that browser's assigned player. See [MOVES.md](MOVES.md) for every gesture recipe, per-encounter mechanics, and the Hexwyrm's phase sequence.
 
 ## Commands
 
@@ -31,7 +31,13 @@ npm run build
 
 ## LLM Director
 
-The room host requests one presentation configuration from a Netlify Function and shares the validated result with the guest. The Director may select only curated enemy names, titles, elemental themes, and finisher copy; combat rules, health, damage, phases, and gesture recipes remain deterministic.
+Three Netlify Functions share one provider/fallback pipeline (`src/director/providers.ts`):
+
+- `director` — the room host requests one presentation configuration and shares the validated result with the guest. The Director may select only curated enemy names, titles, elemental themes, and finisher copy; combat rules, health, damage, phases, and gesture recipes remain deterministic.
+- `loader-facts` — flavor facts shown on the asset-loading screen.
+- `dialogue` — combat lines for each real encounter (Embermaw, Shard Warden, Hexwyrm), requested per round and synced from host to guest. Tutorial dialogue stays fully static and does not call this function.
+
+Every function falls back to a built-in static script if the provider is unset, times out, or returns output that fails validation, so the game always starts and plays normally offline.
 
 The active implementation is selected entirely through `LLM_DIRECTOR_PROVIDER`:
 

@@ -51,28 +51,17 @@ function SceneMesh() {
   );
 }
 
-function RoomCamera({ round, playerId, preview, resetKey, effect, emergeTick }: { round: GameState["round"]; playerId: PlayerId; preview: boolean; resetKey: number; effect?: CombatEffect; emergeTick: number }) {
+function RoomCamera({ round, playerId, preview, resetKey, effect }: { round: GameState["round"]; playerId: PlayerId; preview: boolean; resetKey: number; effect?: CombatEffect }) {
   const { camera } = useThree();
   const light = useRef<PointLight>(null);
   const keys = useRef(new Set<string>());
   const direction = useRef(new Vector3());
   const right = useRef(new Vector3());
   const playerHitShakeUntil = useRef(0);
-  const emergeShakeUntil = useRef(0);
 
   useEffect(() => {
     if (effect?.kind === "PLAYER_HIT") playerHitShakeUntil.current = performance.now() + 550;
-    if (effect?.kind === "STARFALL") emergeShakeUntil.current = performance.now() + 2_400;
   }, [effect?.id, effect?.kind]);
-
-  // `emergeTick` only bumps once the defeated monster's model has actually been swapped out for
-  // the next one (see Arena()'s visibleRound effect below) — not the instant `round` changes in
-  // game state, which happens well before the death animation has had a chance to play out.
-  // Starts at 0 and never goes back to 0, so this correctly no-ops on mount.
-  useEffect(() => {
-    if (emergeTick === 0) return;
-    emergeShakeUntil.current = performance.now() + 1_250;
-  }, [emergeTick]);
 
   useEffect(() => {
     camera.position.x = playerCameraX(ROOM_CAMERA_X[round], playerId, preview);
@@ -114,15 +103,13 @@ function RoomCamera({ round, playerId, preview, resetKey, effect, emergeTick }: 
     } else {
       const idleSway = Math.sin(clock.elapsedTime * 0.42) * 0.018;
       const now = performance.now();
-      const emergeShaking = now < emergeShakeUntil.current;
       const hitShaking = now < playerHitShakeUntil.current;
-      const shaking = emergeShaking || hitShaking;
-      const magnitude = emergeShaking ? 0.026 : 0.014;
-      const shakeX = shaking ? Math.sin(clock.elapsedTime * 71) * magnitude : 0;
-      const shakeY = shaking ? Math.cos(clock.elapsedTime * 83) * magnitude * 0.7 : 0;
+      const magnitude = 0.014;
+      const shakeX = hitShaking ? Math.sin(clock.elapsedTime * 71) * magnitude : 0;
+      const shakeY = hitShaking ? Math.cos(clock.elapsedTime * 83) * magnitude * 0.7 : 0;
       camera.position.x = MathUtils.damp(camera.position.x, playerX + idleSway + shakeX, 8, delta);
       camera.position.y = MathUtils.damp(camera.position.y, roomY, 3.5, delta);
-      if (shaking) camera.position.y += shakeY;
+      if (hitShaking) camera.position.y += shakeY;
       camera.position.z = MathUtils.damp(camera.position.z, CAMERA_SPAWN_Z, 3.5, delta);
       camera.lookAt(roomX, 0.9, MONSTER_Z);
     }
@@ -382,13 +369,13 @@ function AnimatedEmbermaw({ state, color }: { state: GameState; color: string })
   }, [actions]);
 
   // Embermaw is the only monster that can mount while still "LOBBY" (idle, waiting for the
-  // fight to start), which is why it normally waits for the LOBBY -> PLAYING edge below instead
-  // of starting on mount like Shard Warden/Hexwyrm do. But `START` resets straight to "PLAYING"
-  // without passing through "LOBBY" (see engine.ts), and finishing a full run unmounts and
-  // remounts this component (round leaves EMBERMAW and comes back) — so on a replay it can also
-  // mount with status already "PLAYING", where that edge never fires. Cover that case here.
+  // fight to start), which is why it normally waits for the LOBBY -> DIALOGUE/PLAYING edge below
+  // instead of starting on mount like Shard Warden/Hexwyrm do. But `START` resets straight past
+  // "LOBBY" (see engine.ts's enterRound), and finishing a full run unmounts and remounts this
+  // component (round leaves EMBERMAW and comes back) — so on a replay it can also mount with
+  // status already past "LOBBY", where that edge never fires. Cover that case here.
   useEffect(() => {
-    if (state.status === "PLAYING") {
+    if (state.status !== "LOBBY") {
       entranceStartAt.current = performance.now();
     }
   }, []);
@@ -414,7 +401,7 @@ function AnimatedEmbermaw({ state, color }: { state: GameState; color: string })
     if (state.round === "EMBERMAW" && previous.round === "EMBERMAW" && state.enemyAttackCount > previous.enemyAttackCount) {
       crossfadeTo(actions, EMBERMAW_CLIP.jumpingPunch, { once: true });
     }
-    if (previous.status === "LOBBY" && state.status === "PLAYING") {
+    if (previous.status === "LOBBY" && state.status !== "LOBBY") {
       entranceStartAt.current = performance.now();
     }
     if (state.status === "LOBBY") {
@@ -666,7 +653,6 @@ class ArenaErrorBoundary extends Component<{ children: ReactNode; resetKey: stri
 
 export function Arena({ state, playerId, enemyColor, now = 0, preview = false, resetKey = 0, onAssetLoaded, onAssetError }: { state: GameState; playerId: PlayerId; enemyColor: string; now?: number; preview?: boolean; resetKey?: number; onAssetLoaded?: (assetUrl: string) => void; onAssetError?: (error: Error) => void }) {
   const [visibleRound, setVisibleRound] = useState(state.round);
-  const [emergeTick, setEmergeTick] = useState(0);
   const roomX = ROOM_CAMERA_X[visibleRound];
   const cameraX = playerCameraX(roomX, playerId, preview);
   const shielded = state.status === "PLAYING" && Object.values(state.players).some((player) => player.shieldedUntil > now);
@@ -676,13 +662,11 @@ export function Arena({ state, playerId, enemyColor, now = 0, preview = false, r
     if (visibleRound === state.round) return;
     if (state.status === "DIALOGUE") {
       setVisibleRound(state.round);
-      setEmergeTick((tick) => tick + 1);
       return;
     }
     const holdMs = DEFEAT_HOLD_MS[visibleRound];
     const reveal = () => {
       setVisibleRound(state.round);
-      setEmergeTick((tick) => tick + 1);
     };
     if (holdMs !== undefined) {
       const timer = setTimeout(reveal, holdMs);
@@ -723,7 +707,7 @@ export function Arena({ state, playerId, enemyColor, now = 0, preview = false, r
           <PlayerPositions roomX={roomX} />
           {state.effect && <SpellEffect key={state.effect.id} roomX={roomX} round={state.round} effect={state.effect} />}
         </Suspense>
-        <RoomCamera round={visibleRound} playerId={playerId} preview={preview} resetKey={resetKey} effect={state.effect} emergeTick={emergeTick} />
+        <RoomCamera round={visibleRound} playerId={playerId} preview={preview} resetKey={resetKey} effect={state.effect} />
         {shielded && <CameraShield />}
         {preview && <PointerLockControls selector="#explore-scene" />}
       </Canvas>
