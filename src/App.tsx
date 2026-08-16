@@ -209,19 +209,11 @@ export function App() {
     const onKeyDown = (event: KeyboardEvent) => {
       const gesture = keyGestures[event.key];
       if (!gesture || event.repeat) return;
-      if (spellPlaygroundRef.current) {
-        dispatchPlayground({ type: "GESTURE", playerId: "PLAYER_A", gesture, at: performance.now() });
-      } else {
-        castGesture(gesture, performance.now());
-      }
+      if (!spellPlaygroundRef.current) castGesture(gesture, performance.now());
     };
     const onKeyUp = (event: KeyboardEvent) => {
       if (!keyGestures[event.key]) return;
-      if (spellPlaygroundRef.current) {
-        dispatchPlayground({ type: "GESTURE_END", playerId: "PLAYER_A" });
-      } else {
-        clearGesture();
-      }
+      if (!spellPlaygroundRef.current) clearGesture();
     };
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);

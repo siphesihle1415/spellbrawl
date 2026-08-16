@@ -69,16 +69,32 @@ test("spell playground uses one hand tracker and drives the real spell state", a
   await expect(page.locator(".hand-card")).toHaveCount(1);
   await page.getByLabel("Player 1 hand tracking").getByRole("button", { name: "Grant camera access" }).click();
 
+  const spellPicker = page.getByLabel("Choose a spell to test");
+  await expect(spellPicker.getByRole("button")).toHaveCount(7);
   const shieldMove = page.locator(".compact-spell").filter({ hasText: "Arcane Shield" });
+  await spellPicker.getByRole("button", { name: "Arcane Shield", exact: true }).click();
   await expect(shieldMove).not.toHaveClass(/is-active/);
   await page.keyboard.press("2");
   await expect(shieldMove).toHaveClass(/is-active/);
   await expect(shieldMove).not.toHaveClass(/is-active/, { timeout: 3_000 });
 
+  await spellPicker.getByRole("button", { name: "Firebolt", exact: true }).click();
   await page.keyboard.press("1");
   await page.keyboard.press("2");
-  await expect(page.getByText("Firebolt strikes true!", { exact: true })).toBeVisible();
-  await expect(page.getByText("Enemy 2 / 3 HP", { exact: false })).toBeVisible();
+  await expect(page.getByText("Firebolt launched!", { exact: true })).toBeVisible();
+
+  const remainingSpells = [
+    { name: "Starfall", keys: ["1", "4", "2"], message: "Starfall called down!" },
+    { name: "Breath Barrier", keys: ["2", "2"], message: "Co-op breath barrier formed!" },
+    { name: "Armor Phase", keys: ["3", "4", "3", "4"], message: "Armor shattered!" },
+    { name: "Core Phase", keys: ["1", "2"], message: "Firebolt struck the exposed core!" },
+    { name: "Fusion Finisher", keys: ["1", "4", "2"], message: "Fusion Finisher unleashed!" },
+  ];
+  for (const spell of remainingSpells) {
+    await spellPicker.getByRole("button", { name: spell.name, exact: true }).click();
+    for (const key of spell.keys) await page.keyboard.press(key);
+    await expect(page.getByText(spell.message, { exact: true })).toBeVisible();
+  }
   await page.screenshot({ path: "test-results/spell-playground.png", fullPage: true });
 
   await page.getByRole("button", { name: "Exit playground" }).click();

@@ -282,6 +282,33 @@
 .playground-heading h2 { margin: 3px 0; font-family: var(--font-display); font-size: 1.15rem; }
 .playground-heading p { margin: 0; color: #b8c9be; font-size: .62rem; }
 .playground-heading button { cursor: pointer; border: 1px solid #5d7968; border-radius: 999px; background: #13231a; padding: 7px 10px; color: #c7f5d9; font-size: .58rem; white-space: nowrap; }
+.playground-spell-picker {
+  position: absolute;
+  z-index: 1;
+  top: 196px;
+  left: 16px;
+  display: flex;
+  width: min(430px, calc(100vw - 360px));
+  flex-wrap: wrap;
+  gap: 5px;
+  border: 1px solid #3a2c4e;
+  border-radius: 13px;
+  background: #0d0917e8;
+  padding: 9px;
+  box-shadow: 0 16px 40px #0008;
+  pointer-events: auto;
+  backdrop-filter: blur(14px);
+}
+.playground-spell-picker > button { cursor: pointer; border: 1px solid #4b3c60; border-radius: 999px; background: #171020; padding: 6px 9px; color: #b7a9c8; font-size: .53rem; }
+.playground-spell-picker > button.is-selected { border-color: #70efb0; background: #173225; color: #baf7d5; box-shadow: 0 0 10px #70efb033; }
+.playground-recipe { display: flex; width: 100%; flex-direction: column; gap: 6px; margin-top: 3px; border-top: 1px solid #332944; padding: 8px 3px 2px; }
+.playground-recipe > strong { color: #eee4fa; font-family: var(--font-display); font-size: .68rem; text-transform: uppercase; }
+.playground-recipe > span { display: flex; flex-wrap: wrap; gap: 5px; }
+.playground-recipe i { display: flex; align-items: center; gap: 3px; border: 1px solid #3d334c; border-radius: 7px; padding: 4px 6px; color: #7f738d; font-size: .5rem; font-style: normal; text-transform: uppercase; }
+.playground-recipe i.is-next { border-color: #f0a34f; color: #ffd49a; box-shadow: 0 0 9px #f08e3633; }
+.playground-recipe i.is-complete { border-color: #4b9a70; color: #8ee7b3; }
+.playground-recipe .gesture-glyph { font-size: 1rem; }
+.playground-recipe small { color: #817690; font-size: .5rem; }
 .playground-camera { position: absolute; bottom: 16px; left: 16px; pointer-events: auto; }
 
 .hand-card {
@@ -350,6 +377,10 @@
   .playground-heading { top: 58px; right: 8px; left: 8px; max-width: none; padding: 9px; }
   .playground-heading h2 { font-size: .9rem; }
   .playground-heading p { font-size: .54rem; }
+  .playground-spell-picker { top: 155px; right: 8px; left: 8px; width: auto; padding: 7px; }
+  .playground-spell-picker > button { padding: 5px 7px; font-size: .47rem; }
+  .playground-recipe { gap: 4px; padding-top: 5px; }
+  .playground-recipe small { display: none; }
   .playground-camera { bottom: 8px; left: 8px; }
   .playground-camera .hand-card { width: min(210px, calc(100vw - 16px)); }
   .combat-message { bottom: 122px; width: calc(100% - 16px); padding: 8px; font-size: .64rem; }
