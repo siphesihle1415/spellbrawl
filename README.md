@@ -1,4 +1,6 @@
-# SpellBrawl
+<p align="center">
+  <img src="docs/assets/spellbrawl-logo.svg" alt="SpellBrawl" width="520" />
+</p>
 
 A two-player co-op browser game where players cast spells with hand gestures, coordinate against three enemies, and finish the Hexwyrm with a fusion attack.
 
