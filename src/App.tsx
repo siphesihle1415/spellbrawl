@@ -2,6 +2,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { directMessage, encounterForRound } from "./director/defaultConfig";
 import { useRunConfiguration } from "./director/useRunConfiguration";
 import { gameReducer, initialGameState } from "./game/engine";
+import { ATTACK_IMPACT_DELAY_MS } from "./game/monsters";
 import type { Gesture, PlayerId, RoundId } from "./game/types";
 import { WebcamPreview } from "./hand/WebcamPreview";
 import { CloudflareRoomTransport } from "./multiplayer/CloudflareRoomTransport";
@@ -138,10 +139,17 @@ export function App() {
 
   useEffect(() => {
     if (state.status !== "PLAYING" || connection.status !== "CONNECTED" || !connection.isHost) return;
+    let impactTimeout: number | undefined;
     const interval = window.setInterval(() => {
-      dispatch({ type: "ENEMY_ATTACK", at: performance.now() });
+      dispatch({ type: "ENEMY_ATTACK_WINDUP", at: performance.now() });
+      impactTimeout = window.setTimeout(() => {
+        dispatch({ type: "ENEMY_ATTACK", at: performance.now() });
+      }, ATTACK_IMPACT_DELAY_MS[state.round]);
     }, 7_000);
-    return () => window.clearInterval(interval);
+    return () => {
+      window.clearInterval(interval);
+      window.clearTimeout(impactTimeout);
+    };
   }, [state.status, state.round, connection]);
 
   useEffect(() => {
@@ -248,7 +256,14 @@ export function App() {
               <WebcamPreview onGesture={(gesture) => castGesture(gesture, performance.now())} />
               <GestureControls onGesture={(gesture) => castGesture(gesture, performance.now())} />
               {connection.isHost && (
-                <button className="col-span-2 cursor-pointer rounded-[10px] border border-dashed border-[#653c45] bg-[#0c0915bb] p-2.5 text-[0.68rem] text-[#b9979d] backdrop-blur-sm min-[901px]:col-auto" type="button" onClick={() => dispatch({ type: "ENEMY_ATTACK", at: performance.now() })}>
+                <button
+                  className="col-span-2 cursor-pointer rounded-[10px] border border-dashed border-[#653c45] bg-[#0c0915bb] p-2.5 text-[0.68rem] text-[#b9979d] backdrop-blur-sm min-[901px]:col-auto"
+                  type="button"
+                  onClick={() => {
+                    dispatch({ type: "ENEMY_ATTACK_WINDUP", at: performance.now() });
+                    window.setTimeout(() => dispatch({ type: "ENEMY_ATTACK", at: performance.now() }), ATTACK_IMPACT_DELAY_MS[state.round]);
+                  }}
+                >
                   Simulate enemy attack
                 </button>
               )}

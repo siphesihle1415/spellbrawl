@@ -16,6 +16,19 @@ describe("gameReducer", () => {
     expect(blocked.sharedHp).toBe(5);
   });
 
+  it("counts every enemy attack windup, and resolves damage separately on impact", () => {
+    const shielded = gameReducer(started(), { type: "GESTURE", playerId: "PLAYER_A", gesture: "OPEN_PALM", at: 100 });
+    const windedUp = gameReducer(shielded, { type: "ENEMY_ATTACK_WINDUP", at: 400 });
+    expect(windedUp.enemyAttackCount).toBe(1);
+    const blocked = gameReducer(windedUp, { type: "ENEMY_ATTACK", at: 500 });
+    expect(blocked.enemyAttackCount).toBe(1);
+    expect(blocked.sharedHp).toBe(5);
+
+    const landed = gameReducer(gameReducer(started(), { type: "ENEMY_ATTACK_WINDUP", at: 400 }), { type: "ENEMY_ATTACK", at: 500 });
+    expect(landed.enemyAttackCount).toBe(1);
+    expect(landed.sharedHp).toBe(4);
+  });
+
   it("requires a second player to point before breaking the Warden shield", () => {
     let state = started();
     for (let index = 0; index < 3; index += 1) {

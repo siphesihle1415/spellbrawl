@@ -12,7 +12,10 @@
     "preview": "vite preview",
     "deploy:worker": "wrangler deploy",
     "test": "vitest run",
-    "assets:compress-monsters": "node scripts/compress-monsters.mjs"
+    "assets:compress-monsters": "node scripts/compress-monsters.mjs",
+    "assets:compress-embermaw-animations": "node scripts/compress-embermaw-animations.mjs",
+    "assets:compress-shardbound-colossus-animations": "node scripts/compress-shardbound-colossus-animations.mjs",
+    "assets:compress-voidwyrm-ascendant-animations": "node scripts/compress-voidwyrm-ascendant-animations.mjs"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.1",
@@ -27,6 +30,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260815.1",
     "@netlify/functions": "^5.3.0",
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^26.2.0",
     "@types/react": "^19.2.2",
