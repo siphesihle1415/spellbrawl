@@ -1,9 +1,9 @@
 import { Float, PointerLockControls, Sparkles, useAnimations, useGLTF } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Component, Suspense, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from "react";
+import { Component, memo, Suspense, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from "react";
 import { AdditiveBlending, BackSide, LoopOnce, MathUtils, Mesh, Vector3, type AnimationAction, type AnimationClip, type Group, type Object3D, type PointLight } from "three";
 import { ARENA_SCENE_URL, arenaAssetUrlsForRound } from "../game/assets";
-import { activeMonsterModelUrl, DEFEAT_HOLD_MS, EMBERMAW_ANIMATED_TRANSFORM, EMBERMAW_ANIMATION_URLS, HEXWYRM_ANIMATED_TRANSFORM, HEXWYRM_ANIMATION_URLS, MONSTER_TRANSFORM, ROUND_ANIMATION_URLS, SHARD_WARDEN_ANIMATED_TRANSFORM, SHARD_WARDEN_ANIMATION_URLS } from "../game/monsters";
+import { DEFEAT_HOLD_MS, EMBERMAW_ANIMATED_TRANSFORM, EMBERMAW_ANIMATION_URLS, HEXWYRM_ANIMATED_TRANSFORM, HEXWYRM_ANIMATION_URLS, ROUND_ANIMATION_URLS, SHARD_WARDEN_ANIMATED_TRANSFORM, SHARD_WARDEN_ANIMATION_URLS } from "../game/monsters";
 import type { CombatEffect, GameState, PlayerId } from "../game/types";
 import { FireballEffect } from "./FireballEffect";
 import { SpellProjectileEffect } from "./SpellProjectileEffect";
@@ -216,50 +216,6 @@ function SpellEffect({ roomX, round, effect }: { roomX: number; round: GameState
     return <SpellProjectileEffect source={[playerCameraX(roomX, caster, false), ROOM_CAMERA_Y[round] - 0.1, CAMERA_SPAWN_Z - 0.18]} target={[roomX, 0.62, MONSTER_Z + 0.05]} color={effect.kind === "ARMOR_BREAK" ? "#ffad27" : "#55f6ff"} twin={effect.kind === "BARRIER"} />;
   }
   return null;
-}
-
-function Enemy({ state, color }: { state: GameState; color: string }) {
-  const group = useRef<Group>(null);
-  const shielded = state.phase === "SHIELDED" || state.phase === "ARMOR_PHASE";
-  const { scene } = useGLTF(activeMonsterModelUrl(state.round));
-  const { scale, position } = MONSTER_TRANSFORM[state.round];
-
-  useEffect(() => {
-    scene.traverse((child) => {
-      child.castShadow = true;
-      child.receiveShadow = true;
-    });
-  }, [scene]);
-
-  useFrame((clock) => {
-    if (!group.current) return;
-    group.current.rotation.y = clock.clock.elapsedTime * 0.35;
-    group.current.rotation.x = Math.sin(clock.clock.elapsedTime * 0.5) * 0.12;
-  });
-
-  return (
-    <group position={[ROOM_CAMERA_X[state.round], 0.4, MONSTER_Z]}>
-      <Float speed={2} rotationIntensity={0.25} floatIntensity={0.4}>
-        <group ref={group} scale={scale} position={position}>
-          <primitive object={scene} />
-        </group>
-        {shielded && (
-          <mesh position={[0, 0.34, 0]}>
-            <sphereGeometry args={[0.4, 32, 32]} />
-            <meshPhysicalMaterial
-              color="#8cecff"
-              transmission={0.75}
-              transparent
-              opacity={0.35}
-              roughness={0.05}
-              thickness={0.25}
-            />
-          </mesh>
-        )}
-      </Float>
-      <Sparkles count={25} position={[0, 0.35, 0]} scale={0.9} size={1.2} speed={0.4} color={color} />
-    </group>
-  );
 }
 
 const EMBERMAW_CLIP = {
@@ -660,12 +616,13 @@ class ArenaErrorBoundary extends Component<{ children: ReactNode; resetKey: stri
   }
 }
 
-export function Arena({ state, playerId, enemyColor, now = 0, preview = false, resetKey = 0, onAssetLoaded, onAssetError }: { state: GameState; playerId: PlayerId; enemyColor: string; now?: number; preview?: boolean; resetKey?: number; onAssetLoaded?: (assetUrl: string) => void; onAssetError?: (error: Error) => void }) {
+// Takes `shielded` as a boolean instead of App.tsx's 100ms `now` clock, which used to reconcile
+// this whole react-three-fiber tree ten times a second.
+function ArenaScene({ state, playerId, enemyColor, shielded = false, preview = false, resetKey = 0, onAssetLoaded, onAssetError }: { state: GameState; playerId: PlayerId; enemyColor: string; shielded?: boolean; preview?: boolean; resetKey?: number; onAssetLoaded?: (assetUrl: string) => void; onAssetError?: (error: Error) => void }) {
   const [visibleRound, setVisibleRound] = useState(state.round);
   const roomX = ROOM_CAMERA_X[visibleRound];
   const cameraX = playerCameraX(roomX, playerId, preview);
-  const shielded = state.status === "PLAYING" && Object.values(state.players).some((player) => player.shieldedUntil > now);
-  const requiredAssets = arenaAssetUrlsForRound(state.round);
+  const requiredAssets = useMemo(() => arenaAssetUrlsForRound(state.round), [state.round]);
 
   useEffect(() => {
     if (visibleRound === state.round) return;
@@ -708,10 +665,8 @@ export function Arena({ state, playerId, enemyColor, now = 0, preview = false, r
             <AnimatedEmbermaw state={state} color={enemyColor} />
           ) : visibleRound === "SHARD_WARDEN" ? (
             <AnimatedShardWarden state={state} color={enemyColor} />
-          ) : visibleRound === "HEXWYRM" ? (
-            <AnimatedHexwyrm state={state} color={enemyColor} />
           ) : (
-            <Enemy state={state} color={enemyColor} />
+            <AnimatedHexwyrm state={state} color={enemyColor} />
           )}
           <PlayerPositions roomX={roomX} />
           {state.effect && <SpellEffect key={state.effect.id} roomX={roomX} round={state.round} effect={state.effect} />}
@@ -724,3 +679,5 @@ export function Arena({ state, playerId, enemyColor, now = 0, preview = false, r
     </ArenaErrorBoundary>
   );
 }
+
+export const Arena = memo(ArenaScene);

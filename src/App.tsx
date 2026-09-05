@@ -323,6 +323,8 @@ export function App() {
         : "Classic run";
   const arenaState = isSpellPlayground ? playgroundState : state;
   const arenaEncounter = encounterForRound(configuration, arenaState.round);
+  // Derived here so Arena never takes the 100ms `now` clock as a prop.
+  const arenaShielded = arenaState.status === "PLAYING" && Object.values(arenaState.players).some((player) => player.shieldedUntil > now);
   const arenaAssets = arenaAssetUrlsForRound(arenaState.round);
   const loadedArenaAssetCount = arenaAssets.filter((url) => loadedAssets.has(url)).length;
   const arenaAssetsReady = lightweightTestMode || loadedArenaAssetCount === arenaAssets.length;
@@ -392,7 +394,7 @@ export function App() {
       <section className="absolute inset-0 overflow-hidden">
         {lightweightTestMode
           ? <div className="arena-lite-bg" aria-hidden="true" />
-          : <Arena state={arenaState} playerId={myPlayerId} enemyColor={arenaEncounter.color} now={now} onAssetLoaded={onAssetLoaded} onAssetError={onAssetError} />}
+          : <Arena state={arenaState} playerId={myPlayerId} enemyColor={arenaEncounter.color} shielded={arenaShielded} onAssetLoaded={onAssetLoaded} onAssetError={onAssetError} />}
 
         {!lightweightTestMode && <StartupLoader loadedAssets={loadedStartupAssetCount} totalAssets={STARTUP_ASSET_URLS.length} />}
 
