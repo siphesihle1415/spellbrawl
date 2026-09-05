@@ -345,6 +345,7 @@ function AnimatedEmbermaw({ state, color }: { state: GameState; color: string })
   const group = useRef<Group>(null);
   const entranceGroup = useRef<Group>(null);
   const entranceStartAt = useRef<number | null>(null);
+  const defeatedRef = useRef(false);
   const walking = useGLTF(EMBERMAW_ANIMATION_URLS.walking);
   const zombieScream = useGLTF(EMBERMAW_ANIMATION_URLS.zombieScream);
   const jumpingPunch = useGLTF(EMBERMAW_ANIMATION_URLS.jumpingPunch);
@@ -382,6 +383,7 @@ function AnimatedEmbermaw({ state, color }: { state: GameState; color: string })
 
   useEffect(() => {
     const onFinished = (event: { action: AnimationAction }) => {
+      if (defeatedRef.current) return;
       if (event.action === actions[EMBERMAW_CLIP.zombieScream] || event.action === actions[EMBERMAW_CLIP.jumpingPunch]) {
         crossfadeTo(actions, EMBERMAW_CLIP.walking, { once: false });
       }
@@ -396,6 +398,7 @@ function AnimatedEmbermaw({ state, color }: { state: GameState; color: string })
       crossfadeTo(actions, EMBERMAW_CLIP.zombieScream, { once: true });
     }
     if ((previous.round === "EMBERMAW" && state.round !== "EMBERMAW") || (previous.status !== "MONSTER_DEFEATED" && state.status === "MONSTER_DEFEATED")) {
+      defeatedRef.current = true;
       crossfadeTo(actions, EMBERMAW_CLIP.fallingDown, { once: true, clampWhenFinished: true });
     }
     if (state.round === "EMBERMAW" && previous.round === "EMBERMAW" && state.enemyAttackCount > previous.enemyAttackCount) {
@@ -437,6 +440,7 @@ function AnimatedShardWarden({ state, color }: { state: GameState; color: string
   const group = useRef<Group>(null);
   const entranceGroup = useRef<Group>(null);
   const entranceStartAt = useRef<number | null>(null);
+  const defeatedRef = useRef(false);
   const shielded = state.phase === "SHIELDED" || state.phase === "ARMOR_PHASE";
   const walking = useGLTF(SHARD_WARDEN_ANIMATION_URLS.walking);
   const skill03 = useGLTF(SHARD_WARDEN_ANIMATION_URLS.skill03);
@@ -473,6 +477,7 @@ function AnimatedShardWarden({ state, color }: { state: GameState; color: string
 
   useEffect(() => {
     const onFinished = (event: { action: AnimationAction }) => {
+      if (defeatedRef.current) return;
       if (event.action === actions[SHARD_WARDEN_CLIP.skill03] || event.action === actions[SHARD_WARDEN_CLIP.tripleComboAttack]) {
         crossfadeTo(actions, SHARD_WARDEN_CLIP.walking, { once: false });
       }
@@ -487,6 +492,7 @@ function AnimatedShardWarden({ state, color }: { state: GameState; color: string
       crossfadeTo(actions, SHARD_WARDEN_CLIP.skill03, { once: true });
     }
     if ((previous.round === "SHARD_WARDEN" && state.round !== "SHARD_WARDEN") || (previous.status !== "MONSTER_DEFEATED" && state.status === "MONSTER_DEFEATED")) {
+      defeatedRef.current = true;
       crossfadeTo(actions, SHARD_WARDEN_CLIP.shotInTheBackAndFall, { once: true, clampWhenFinished: true });
     }
     if (state.round === "SHARD_WARDEN" && previous.round === "SHARD_WARDEN" && state.enemyAttackCount > previous.enemyAttackCount) {
@@ -535,6 +541,7 @@ function AnimatedHexwyrm({ state, color }: { state: GameState; color: string }) 
   const group = useRef<Group>(null);
   const entranceGroup = useRef<Group>(null);
   const entranceStartAt = useRef<number | null>(null);
+  const defeatedRef = useRef(false);
   const shielded = state.phase === "SHIELDED" || state.phase === "ARMOR_PHASE";
   const walking = useGLTF(HEXWYRM_ANIMATION_URLS.walking);
   const zombieScream = useGLTF(HEXWYRM_ANIMATION_URLS.zombieScream);
@@ -568,6 +575,7 @@ function AnimatedHexwyrm({ state, color }: { state: GameState; color: string }) 
 
   useEffect(() => {
     const onFinished = (event: { action: AnimationAction }) => {
+      if (defeatedRef.current) return;
       if (event.action === actions[HEXWYRM_CLIP.zombieScream] || event.action === actions[HEXWYRM_CLIP.crouchChargeAndThrow]) {
         crossfadeTo(actions, HEXWYRM_CLIP.walking, { once: false });
       }
@@ -587,6 +595,7 @@ function AnimatedHexwyrm({ state, color }: { state: GameState; color: string }) 
       crossfadeTo(actions, HEXWYRM_CLIP.zombieScream, { once: true });
     }
     if (previous.status !== "MONSTER_DEFEATED" && state.status === "MONSTER_DEFEATED") {
+      defeatedRef.current = true;
       crossfadeTo(actions, HEXWYRM_CLIP.shotAndFallBackward, { once: true, clampWhenFinished: true });
     }
     if (state.round === "HEXWYRM" && state.enemyAttackCount > previous.enemyAttackCount) {
