@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { CombatEffectKind, GameStatus } from "../game/types";
+import { acquireFromPool } from "./audioPool";
 
 const soundForEffect: Partial<Record<CombatEffectKind, string>> = {
   FIREBOLT: "/audio/fireball.mp3",
@@ -8,8 +9,17 @@ const soundForEffect: Partial<Record<CombatEffectKind, string>> = {
   ENEMY_EMERGE: "/audio/nextlevel.mp3",
 };
 
+// Pooled per src so rapid overlapping hits don't each allocate a new HTMLAudioElement.
+const effectPools = new Map<string, HTMLAudioElement[]>();
+
 function playFile(src: string, volume = 0.7) {
-  const audio = new Audio(src);
+  let pool = effectPools.get(src);
+  if (!pool) {
+    pool = [];
+    effectPools.set(src, pool);
+  }
+  const audio = acquireFromPool(pool, () => new Audio(src));
+  audio.currentTime = 0;
   audio.volume = volume;
   void audio.play().catch(() => undefined);
 }
