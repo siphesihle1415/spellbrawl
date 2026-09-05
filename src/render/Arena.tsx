@@ -689,7 +689,7 @@ export function Arena({ state, playerId, enemyColor, now = 0, preview = false, r
       <div className="absolute inset-0 h-full w-full" data-player-side={playerId === "PLAYER_A" ? "left" : "right"} data-camera-x={cameraX}>
       <Canvas
         className="h-full w-full"
-        dpr={[1, 1.5]}
+        dpr={[1, 1]}
         shadows
         camera={{ position: [cameraX, ROOM_CAMERA_Y[visibleRound], CAMERA_SPAWN_Z], fov: 68 }}
       >
