@@ -15,13 +15,15 @@ test("startup loader waits for only the initial arena assets", async ({ page }) 
   expect(requestedPaths.some((path) => path.includes("hexwyrm"))).toBe(false);
   expect(requestedPaths.some((path) => path.endsWith("-a.glb"))).toBe(false);
 
+  // The startup curtain stays silent on purpose — a slow or failed arena download must not
+  // put an error or a retry button in front of the players.
   await page.waitForTimeout(15_500);
   await expect(page.getByRole("heading", { name: "Summoning the arena" })).toBeVisible();
-  await expect(page.getByText("The arena is taking longer than expected to download.")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Retry loading" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Retry loading" })).toHaveCount(0);
 
   await Promise.allSettled(heldModelRequests.map((route) => route.abort("blockedbyclient")));
-  await expect(page.getByText("Some arena assets failed to load.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Summoning the arena" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Retry loading" })).toHaveCount(0);
 });
 
 test("two players see the combat HUD, synced gestures, and shared session exit", async ({ browser }) => {
