@@ -350,6 +350,13 @@ function AnimatedEmbermaw({ state, color }: { state: GameState; color: string })
 
   useEffect(() => {
     const previous = prev.current;
+    // Clearing the tutorial re-enters EMBERMAW without changing `round`, so this component
+    // survives the transition still clamped on falling_down. Rising HP means a fresh encounter.
+    if (state.enemyHp > previous.enemyHp) {
+      defeatedRef.current = false;
+      entranceStartAt.current = performance.now();
+      crossfadeTo(actions, EMBERMAW_CLIP.walking, { once: false });
+    }
     if (state.round === "EMBERMAW" && previous.round === "EMBERMAW" && state.enemyHp < previous.enemyHp && state.enemyHp > 0) {
       crossfadeTo(actions, EMBERMAW_CLIP.zombieScream, { once: true });
     }
