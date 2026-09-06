@@ -27,10 +27,11 @@ describe("monsterImpactPoint", () => {
 // The three rooms do not share a floor height, which is why one hardcoded y left Embermaw sunk
 // into its stage disc and Hexwyrm hovering 0.135 above its own.
 const FLOOR_Y: Record<RoundId, number> = { EMBERMAW: 0.734, SHARD_WARDEN: 0.615, HEXWYRM: 0.548 };
-// How far each rig's lowest vertex sits below its animated group's origin, measured per frame in
-// the running app. Two of the three sit above their own origin, hence the negative numbers: the
-// source models were authored with the mesh offset up off its root.
-const FEET_BELOW_ORIGIN: Record<RoundId, number> = { EMBERMAW: 0.008, SHARD_WARDEN: -0.057, HEXWYRM: -0.057 };
+// How far each rig's lowest foot bone sits below its animated group's origin, measured per frame
+// in the running app. Read off the skeleton, not a bounding box: Shard Warden and Hexwyrm export
+// with mesh bounds that do not track their skeleton at all (a Box3 around them spans 0.071 for a
+// model 0.35 tall), so grounding on that box buried both of them ~0.055 into the floor.
+const FEET_BELOW_ORIGIN: Record<RoundId, number> = { EMBERMAW: -0.003, SHARD_WARDEN: 0, HEXWYRM: -0.003 };
 const GROUP_OFFSET_Y: Record<RoundId, number> = {
   EMBERMAW: EMBERMAW_ANIMATED_TRANSFORM.position[1],
   SHARD_WARDEN: SHARD_WARDEN_ANIMATED_TRANSFORM.position[1],

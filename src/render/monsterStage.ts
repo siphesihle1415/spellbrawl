@@ -36,11 +36,12 @@ export function monsterImpactPoint(round: RoundId, roomX: number): [number, numb
 // each rest spot), so the single 0.4 they all used before could only be right for one of them: it
 // buried Embermaw 0.046 into its stage disc and left Hexwyrm hovering 0.135 above its floor.
 //
-// Calibrated against each rig's lowest vertex as actually rendered. This is only measurable once
-// the models stopped being wrapped in drei's <Float>: its rotation rocked them by up to 0.066,
-// which both moved the contact point every frame and made any single measurement of it unusable.
+// Calibrated against each rig's lowest foot bone as actually rendered, which only became stable
+// once the models stopped being wrapped in drei's <Float>: its rotation rocked them by up to
+// 0.066, moving the contact point every frame. Use the skeleton for this, never a bounding box —
+// see FEET_BELOW_ORIGIN in the test for why the box lies about two of the three rigs.
 export const MONSTER_GROUND_Y: Record<RoundId, number> = {
-  EMBERMAW: 0.442,
-  SHARD_WARDEN: 0.258,
-  HEXWYRM: 0.191,
+  EMBERMAW: 0.431,
+  SHARD_WARDEN: 0.315,
+  HEXWYRM: 0.245,
 };
