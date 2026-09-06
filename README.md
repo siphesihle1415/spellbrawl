@@ -66,4 +66,6 @@ Repository-level CI secrets can be synchronized from a local ignored `.env` file
 
 The repository includes `netlify.toml`. Netlify must run `npm run build` and publish `dist`; publishing the repository root will not serve the compiled Vite application.
 
+Pull requests targeting a branch enabled for Netlify builds receive a Deploy Preview. Check the Netlify status on the pull request for the preview URL before merging.
+
 See [the game documentation](docs/README.md) for the scope, architecture, implementation plan, contracts, and validation checklist.
