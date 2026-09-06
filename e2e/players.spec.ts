@@ -21,7 +21,18 @@ test("startup loader waits for only the initial arena assets", async ({ page }) 
   await expect(page.getByRole("heading", { name: "Summoning the arena" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Retry loading" })).toHaveCount(0);
 
-  await Promise.allSettled(heldModelRequests.map((route) => route.abort("blockedbyclient")));
+  // route.abort() resolves once the abort is dispatched, not once the app has reacted to it: the
+  // rejection still has to reach the GLTF loader, unwind through Suspense into ArenaErrorBoundary
+  // and re-render before any error UI could appear. Asserting straight after the abort would pass
+  // on arrival and prove nothing, so wait for the failures to land in the page and for React to
+  // settle first.
+  const abortedRoutes = [...heldModelRequests];
+  let failedRequestCount = 0;
+  page.on("requestfailed", () => { failedRequestCount += 1; });
+  await Promise.allSettled(abortedRoutes.map((route) => route.abort("blockedbyclient")));
+  await expect.poll(() => failedRequestCount).toBeGreaterThanOrEqual(abortedRoutes.length);
+  await page.waitForTimeout(1_000);
+
   await expect(page.getByRole("heading", { name: "Summoning the arena" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Retry loading" })).toHaveCount(0);
 });
