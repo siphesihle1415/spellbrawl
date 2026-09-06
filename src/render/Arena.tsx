@@ -7,7 +7,7 @@ import { DEFEAT_HOLD_MS, EMBERMAW_ANIMATED_TRANSFORM, EMBERMAW_ANIMATION_URLS, H
 import type { CombatEffect, GameState, PlayerId } from "../game/types";
 import { FireballEffect } from "./FireballEffect";
 import { tookNonFatalHit } from "./monsterReaction";
-import { MONSTER_REST_Z, MONSTER_Z, monsterImpactPoint } from "./monsterStage";
+import { MONSTER_GROUND_Y, MONSTER_REST_Z, MONSTER_Z, monsterImpactPoint } from "./monsterStage";
 import { SpellProjectileEffect } from "./SpellProjectileEffect";
 import { playerCameraX } from "./playerCamera";
 
@@ -386,8 +386,11 @@ function AnimatedEmbermaw({ state, color }: { state: GameState; color: string })
   });
 
   return (
-    <group ref={entranceGroup} position={[ROOM_CAMERA_X.EMBERMAW, 0.4, EMBERMAW_ENTRANCE_START_Z]}>
-      <Float speed={2} rotationIntensity={0.15} floatIntensity={0.3}>
+    <group ref={entranceGroup} position={[ROOM_CAMERA_X.EMBERMAW, MONSTER_GROUND_Y.EMBERMAW, EMBERMAW_ENTRANCE_START_Z]}>
+      {/* floatIntensity 0: the bob lifted the rigs ~0.058 clear of the floor, which read as
+          hovering while they walked and left the death clips settling in mid-air. The gentle
+          rotation stays — it never breaks contact with the ground. */}
+      <Float speed={2} rotationIntensity={0.15} floatIntensity={0}>
         <group ref={group} scale={scale} position={position}>
           <primitive object={walking.scene} />
         </group>
@@ -474,8 +477,8 @@ function AnimatedShardWarden({ state, color }: { state: GameState; color: string
   });
 
   return (
-    <group ref={entranceGroup} position={[ROOM_CAMERA_X.SHARD_WARDEN, 0.4, SHARD_WARDEN_ENTRANCE_START_Z]}>
-      <Float speed={2} rotationIntensity={0.15} floatIntensity={0.3}>
+    <group ref={entranceGroup} position={[ROOM_CAMERA_X.SHARD_WARDEN, MONSTER_GROUND_Y.SHARD_WARDEN, SHARD_WARDEN_ENTRANCE_START_Z]}>
+      <Float speed={2} rotationIntensity={0.15} floatIntensity={0}>
         <group ref={group} scale={scale} position={position}>
           <primitive object={walking.scene} />
         </group>
@@ -577,8 +580,8 @@ function AnimatedHexwyrm({ state, color }: { state: GameState; color: string }) 
   });
 
   return (
-    <group ref={entranceGroup} position={[ROOM_CAMERA_X.HEXWYRM, 0.4, HEXWYRM_ENTRANCE_START_Z]}>
-      <Float speed={2} rotationIntensity={0.15} floatIntensity={0.3}>
+    <group ref={entranceGroup} position={[ROOM_CAMERA_X.HEXWYRM, MONSTER_GROUND_Y.HEXWYRM, HEXWYRM_ENTRANCE_START_Z]}>
+      <Float speed={2} rotationIntensity={0.15} floatIntensity={0}>
         <group ref={group} scale={scale} position={position}>
           <primitive object={walking.scene} />
         </group>

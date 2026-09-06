@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RoundId } from "../game/types";
-import { MONSTER_REST_Z, monsterImpactPoint } from "./monsterStage";
+import { EMBERMAW_ANIMATED_TRANSFORM, HEXWYRM_ANIMATED_TRANSFORM, SHARD_WARDEN_ANIMATED_TRANSFORM } from "../game/monsters";
+import { MONSTER_GROUND_Y, MONSTER_REST_Z, monsterImpactPoint } from "./monsterStage";
 
 // Body extents measured with a Box3 around each rendered rig in the running app, Float wobble
 // included: the mesh sits within ~0.15 of its room centre, spans y 0.66-1.05, and reaches ~0.09
@@ -22,3 +23,24 @@ describe("monsterImpactPoint", () => {
   }
 });
 
+// Raycast onto the arena mesh in the running app, straight down through each monster's rest spot.
+// The three rooms do not share a floor height, which is why one hardcoded y left Embermaw sunk
+// into its stage disc and Hexwyrm hovering 0.135 above its own.
+const FLOOR_Y: Record<RoundId, number> = { EMBERMAW: 0.734, SHARD_WARDEN: 0.616, HEXWYRM: 0.548 };
+// How far each rig's lowest vertex sits below its animated group's origin, measured from the
+// rendered models with the float bob switched off.
+const FEET_BELOW_ORIGIN: Record<RoundId, number> = { EMBERMAW: 0.012, SHARD_WARDEN: 0, HEXWYRM: 0.017 };
+const GROUP_OFFSET_Y: Record<RoundId, number> = {
+  EMBERMAW: EMBERMAW_ANIMATED_TRANSFORM.position[1],
+  SHARD_WARDEN: SHARD_WARDEN_ANIMATED_TRANSFORM.position[1],
+  HEXWYRM: HEXWYRM_ANIMATED_TRANSFORM.position[1],
+};
+
+describe("MONSTER_GROUND_Y", () => {
+  for (const round of ["EMBERMAW", "SHARD_WARDEN", "HEXWYRM"] as const) {
+    it(`stands ${round} on its own room's floor`, () => {
+      const feet = MONSTER_GROUND_Y[round] + GROUP_OFFSET_Y[round] - FEET_BELOW_ORIGIN[round];
+      expect(feet).toBeCloseTo(FLOOR_Y[round], 2);
+    });
+  }
+});

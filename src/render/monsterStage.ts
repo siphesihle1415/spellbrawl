@@ -27,3 +27,12 @@ export function monsterImpactPoint(round: RoundId, roomX: number): [number, numb
   return [roomX, IMPACT_Y, MONSTER_REST_Z[round] + IMPACT_FORWARD_Z];
 }
 
+// Height of each monster's outer group, chosen so the rig's feet meet the floor of its own room.
+// The three rooms sit at different heights (0.734 / 0.616 / 0.548, raycast onto the arena mesh at
+// each rest spot), so the single 0.4 they all used before could only be right for one of them: it
+// buried Embermaw 0.046 into its stage disc and left Hexwyrm hovering 0.135 above its floor.
+export const MONSTER_GROUND_Y: Record<RoundId, number> = {
+  EMBERMAW: 0.446,
+  SHARD_WARDEN: 0.316,
+  HEXWYRM: 0.265,
+};
