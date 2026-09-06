@@ -242,7 +242,11 @@ const HEXWYRM_CLIP = {
 
 const CROSSFADE_SECONDS = 0.2;
 const ROOT_BONE_NAME = "Hips";
-const EMBERMAW_REST_OFFSET_Z = 0.45;
+// Far enough forward to stand on the middle room's raised stage disc, which ends at z = -0.4:
+// resting on that back rim left Embermaw among the rock props behind it, reading as scenery
+// rather than as the boss. Matches HEXWYRM_REST_OFFSET_Z below, the one monster whose room is
+// open floor and which already framed correctly.
+const EMBERMAW_REST_OFFSET_Z = 0.7;
 const EMBERMAW_REST_Z = MONSTER_Z + EMBERMAW_REST_OFFSET_Z;
 const EMBERMAW_ENTRANCE_START_OFFSET_Z = -2.5;
 const EMBERMAW_ENTRANCE_START_Z = EMBERMAW_REST_Z + EMBERMAW_ENTRANCE_START_OFFSET_Z;
