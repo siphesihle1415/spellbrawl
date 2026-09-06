@@ -7,7 +7,7 @@ import { DEFEAT_HOLD_MS, EMBERMAW_ANIMATED_TRANSFORM, EMBERMAW_ANIMATION_URLS, H
 import type { CombatEffect, GameState, PlayerId } from "../game/types";
 import { FireballEffect } from "./FireballEffect";
 import { tookNonFatalHit } from "./monsterReaction";
-import { CAMERA_SPAWN_Z, MONSTER_GROUND_Y, MONSTER_REST_Z, MONSTER_Z, monsterImpactPoint, monsterShieldCentreY, monsterShieldRadius } from "./monsterStage";
+import { CAMERA_SPAWN_Z, MONSTER_GROUND_Y, MONSTER_REST_Z, MONSTER_Z, monsterImpactPoint, monsterShieldCentreY, monsterShieldRadius, starfallImpactPoint } from "./monsterStage";
 import { SpellProjectileEffect } from "./SpellProjectileEffect";
 import { playerCameraX } from "./playerCamera";
 
@@ -177,7 +177,7 @@ function PlayerPositions({ roomX }: { roomX: number }) {
   );
 }
 
-function StarfallEffect({ roomX }: { roomX: number }) {
+function StarfallEffect({ roomX, round }: { roomX: number; round: GameState["round"] }) {
   const group = useRef<Group>(null);
   const started = useRef(performance.now());
   useFrame(() => {
@@ -188,7 +188,7 @@ function StarfallEffect({ roomX }: { roomX: number }) {
     if (progress === 1) group.current.visible = false;
   });
   return (
-    <group ref={group} position={[roomX, 0.65, MONSTER_Z]}>
+    <group ref={group} position={starfallImpactPoint(round, roomX)}>
       <mesh position={[0, 2.5, 0]}>
         <cylinderGeometry args={[0.035, 0.16, 5, 8]} />
         <meshBasicMaterial color="#e9f7ff" transparent opacity={0.92} blending={AdditiveBlending} depthWrite={false} />
@@ -210,7 +210,7 @@ function SpellEffect({ roomX, round, effect }: { roomX: number; round: GameState
       />
     );
   }
-  if (effect.kind === "STARFALL") return <StarfallEffect roomX={roomX} />;
+  if (effect.kind === "STARFALL") return <StarfallEffect roomX={roomX} round={round} />;
   if (effect.kind === "ARMOR_BREAK" || effect.kind === "BARRIER") {
     const caster = effect.playerId ?? "PLAYER_A";
     return <SpellProjectileEffect source={[playerCameraX(roomX, caster, false), ROOM_CAMERA_Y[round] - 0.1, CAMERA_SPAWN_Z - 0.18]} target={monsterImpactPoint(round, roomX)} color={effect.kind === "ARMOR_BREAK" ? "#ffad27" : "#55f6ff"} twin={effect.kind === "BARRIER"} />;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RoundId } from "../game/types";
 import { EMBERMAW_ANIMATED_TRANSFORM, HEXWYRM_ANIMATED_TRANSFORM, SHARD_WARDEN_ANIMATED_TRANSFORM } from "../game/monsters";
-import { CAMERA_SPAWN_Z, MONSTER_GROUND_Y, MONSTER_REST_Z, monsterImpactPoint, monsterShieldCentreY, monsterShieldRadius } from "./monsterStage";
+import { CAMERA_SPAWN_Z, MONSTER_GROUND_Y, MONSTER_REST_Z, monsterImpactPoint, monsterShieldCentreY, monsterShieldRadius, starfallImpactPoint } from "./monsterStage";
 
 // Body extents measured with a Box3 around each rendered rig in the running app, Float wobble
 // included: the mesh sits within ~0.15 of its room centre, spans y 0.66-1.05, and reaches ~0.09
@@ -95,4 +95,18 @@ describe("monsterShieldCentreY", () => {
     expect(headClearance("HEXWYRM") / monsterShieldRadius("HEXWYRM"))
       .toBeCloseTo(headClearance("SHARD_WARDEN") / monsterShieldRadius("SHARD_WARDEN"), 3);
   });
+});
+
+describe("starfallImpactPoint", () => {
+  for (const round of ["EMBERMAW", "SHARD_WARDEN", "HEXWYRM"] as const) {
+    it(`drops the column onto ${round} rather than the empty monster slot`, () => {
+      const [x, y, z] = starfallImpactPoint(round, ROOM_X[round]);
+      // The shockwave ring sits at the base of the column, so it belongs at the monster's feet —
+      // tied to the same grounding chain that seats the model, not to a separate literal.
+      const feet = MONSTER_GROUND_Y[round] + GROUP_OFFSET_Y[round] - FEET_BELOW_ORIGIN[round];
+      expect(x).toBe(ROOM_X[round]);
+      expect(y).toBeCloseTo(feet, 2);
+      expect(z).toBeCloseTo(MONSTER_REST_Z[round], 3);
+    });
+  }
 });

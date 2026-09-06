@@ -75,3 +75,17 @@ export function monsterShieldCentreY(round: "SHARD_WARDEN" | "HEXWYRM"): number 
   const radius = monsterShieldRadius(round);
   return HEAD_TOP_ABOVE_ORIGIN[round] + SHIELD_HEAD_CLEARANCE * radius - radius;
 }
+
+// Floor height under each monster's rest spot, raycast onto the arena mesh. The three rooms sit at
+// different heights, so effects that belong on the ground need this rather than one shared level.
+export const MONSTER_FLOOR_Y: Record<RoundId, number> = {
+  EMBERMAW: 0.734,
+  SHARD_WARDEN: 0.615,
+  HEXWYRM: 0.548,
+};
+
+// Starfall drops a column from the sky with its shockwave ring at the base, so it is aimed at the
+// monster's feet rather than at its chest the way monsterImpactPoint is.
+export function starfallImpactPoint(round: RoundId, roomX: number): [number, number, number] {
+  return [roomX, MONSTER_FLOOR_Y[round], MONSTER_REST_Z[round]];
+}
