@@ -56,7 +56,9 @@ describe("gameReducer", () => {
     state = gameReducer(state, { type: "CONTINUE_READY", playerId: "PLAYER_A" });
     expect(state.status).toBe("ROUND_COMPLETE");
     state = gameReducer(state, { type: "CONTINUE_READY", playerId: "PLAYER_B" });
-    expect(state).toMatchObject({ status: "DIALOGUE", tutorial: false, round: "EMBERMAW" });
+    // `round` stays EMBERMAW here, so the monster component never unmounts between the tutorial
+    // and the real fight — enemy HP climbing back up is what marks the fresh encounter.
+    expect(state).toMatchObject({ status: "DIALOGUE", tutorial: false, round: "EMBERMAW", enemyHp: encounters.EMBERMAW.hp });
   });
 
   it("requires a second player to point before breaking the Warden shield", () => {

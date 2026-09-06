@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { CombatEffectKind, GameStatus } from "../game/types";
+import { acquireFromPool } from "./audioPool";
 
 const soundForEffect: Partial<Record<CombatEffectKind, string>> = {
   FIREBOLT: "/audio/fireball.mp3",
@@ -8,16 +9,35 @@ const soundForEffect: Partial<Record<CombatEffectKind, string>> = {
   ENEMY_EMERGE: "/audio/nextlevel.mp3",
 };
 
+// Pooled per src so rapid overlapping hits don't each allocate a new HTMLAudioElement.
+const effectPools = new Map<string, HTMLAudioElement[]>();
+
 function playFile(src: string, volume = 0.7) {
-  const audio = new Audio(src);
+  let pool = effectPools.get(src);
+  if (!pool) {
+    pool = [];
+    effectPools.set(src, pool);
+  }
+  const audio = acquireFromPool(pool, () => new Audio(src));
+  audio.currentTime = 0;
   audio.volume = volume;
   void audio.play().catch(() => undefined);
 }
 
-function synthesize(kind: CombatEffectKind | "CLICK") {
+// Shared for the session: browsers cap open AudioContexts, so one per blip eventually kills sound.
+let sharedContext: AudioContext | null = null;
+
+function getAudioContext(): AudioContext | null {
   const AudioContextClass = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!AudioContextClass) return;
-  const context = new AudioContextClass();
+  if (!AudioContextClass) return null;
+  if (!sharedContext) sharedContext = new AudioContextClass();
+  if (sharedContext.state === "suspended") void sharedContext.resume();
+  return sharedContext;
+}
+
+function synthesize(kind: CombatEffectKind | "CLICK") {
+  const context = getAudioContext();
+  if (!context) return;
   const oscillator = context.createOscillator();
   const gain = context.createGain();
   const duration = kind === "STARFALL" ? 1.8 : kind === "ARMOR_BREAK" ? 0.65 : kind === "BARRIER" ? 0.9 : 0.06;
@@ -29,7 +49,11 @@ function synthesize(kind: CombatEffectKind | "CLICK") {
   oscillator.connect(gain).connect(context.destination);
   oscillator.start();
   oscillator.stop(context.currentTime + duration);
-  oscillator.addEventListener("ended", () => void context.close());
+  // Disconnect rather than close: the context is shared.
+  oscillator.addEventListener("ended", () => {
+    oscillator.disconnect();
+    gain.disconnect();
+  });
 }
 
 export function preloadAudioAssets(urls: readonly string[], onLoaded: (url: string) => void, onError: (error: Error) => void) {
@@ -64,7 +88,7 @@ export function useGameAudio(effectId: number | undefined, effectKind: CombatEff
 
     const click = (event: PointerEvent) => {
       if ((event.target as Element | null)?.closest("button")) synthesize("CLICK");
-      void audio.play().catch(() => undefined);
+      if (audio.paused) void audio.play().catch(() => undefined);
     };
     window.addEventListener("pointerdown", click);
     return () => {

@@ -1,11 +1,13 @@
-import { Float, PointerLockControls, Sparkles, useAnimations, useGLTF } from "@react-three/drei";
+import { PointerLockControls, Sparkles, useAnimations, useGLTF } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Component, Suspense, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from "react";
+import { Component, memo, Suspense, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from "react";
 import { AdditiveBlending, BackSide, LoopOnce, MathUtils, Mesh, Vector3, type AnimationAction, type AnimationClip, type Group, type Object3D, type PointLight } from "three";
 import { ARENA_SCENE_URL, arenaAssetUrlsForRound } from "../game/assets";
-import { activeMonsterModelUrl, DEFEAT_HOLD_MS, EMBERMAW_ANIMATED_TRANSFORM, EMBERMAW_ANIMATION_URLS, HEXWYRM_ANIMATED_TRANSFORM, HEXWYRM_ANIMATION_URLS, MONSTER_TRANSFORM, ROUND_ANIMATION_URLS, SHARD_WARDEN_ANIMATED_TRANSFORM, SHARD_WARDEN_ANIMATION_URLS } from "../game/monsters";
+import { DEFEAT_HOLD_MS, EMBERMAW_ANIMATED_TRANSFORM, EMBERMAW_ANIMATION_URLS, HEXWYRM_ANIMATED_TRANSFORM, HEXWYRM_ANIMATION_URLS, ROUND_ANIMATION_URLS, SHARD_WARDEN_ANIMATED_TRANSFORM, SHARD_WARDEN_ANIMATION_URLS } from "../game/monsters";
 import type { CombatEffect, GameState, PlayerId } from "../game/types";
 import { FireballEffect } from "./FireballEffect";
+import { tookNonFatalHit } from "./monsterReaction";
+import { CAMERA_SPAWN_Z, MONSTER_GROUND_Y, MONSTER_REST_Z, MONSTER_Z, monsterImpactPoint, monsterShieldCentreY, monsterShieldRadius, starfallImpactPoint } from "./monsterStage";
 import { SpellProjectileEffect } from "./SpellProjectileEffect";
 import { playerCameraX } from "./playerCamera";
 
@@ -20,8 +22,6 @@ const ROOM_CAMERA_Y: Record<GameState["round"], number> = {
   SHARD_WARDEN: 0.78,
   HEXWYRM: 0.78,
 };
-const CAMERA_SPAWN_Z = 0.35;
-const MONSTER_Z = -0.85;
 const PREVIEW_SPEED = 0.7;
 const PREVIEW_BOUNDS = { minX: -2, maxX: 2, minZ: -1.15, maxZ: 1.15 };
 function AssetReadiness({ assetUrl, onAssetLoaded }: { assetUrl: string; onAssetLoaded?: (assetUrl: string) => void }) {
@@ -177,7 +177,7 @@ function PlayerPositions({ roomX }: { roomX: number }) {
   );
 }
 
-function StarfallEffect({ roomX }: { roomX: number }) {
+function StarfallEffect({ roomX, round }: { roomX: number; round: GameState["round"] }) {
   const group = useRef<Group>(null);
   const started = useRef(performance.now());
   useFrame(() => {
@@ -188,7 +188,7 @@ function StarfallEffect({ roomX }: { roomX: number }) {
     if (progress === 1) group.current.visible = false;
   });
   return (
-    <group ref={group} position={[roomX, 0.65, MONSTER_Z]}>
+    <group ref={group} position={starfallImpactPoint(round, roomX)}>
       <mesh position={[0, 2.5, 0]}>
         <cylinderGeometry args={[0.035, 0.16, 5, 8]} />
         <meshBasicMaterial color="#e9f7ff" transparent opacity={0.92} blending={AdditiveBlending} depthWrite={false} />
@@ -206,60 +206,16 @@ function SpellEffect({ roomX, round, effect }: { roomX: number; round: GameState
     return (
       <FireballEffect
         source={[playerCameraX(roomX, caster, false), ROOM_CAMERA_Y[round] - 0.12, CAMERA_SPAWN_Z - 0.2]}
-        target={[roomX, 0.62, MONSTER_Z + 0.05]}
+        target={monsterImpactPoint(round, roomX)}
       />
     );
   }
-  if (effect.kind === "STARFALL") return <StarfallEffect roomX={roomX} />;
+  if (effect.kind === "STARFALL") return <StarfallEffect roomX={roomX} round={round} />;
   if (effect.kind === "ARMOR_BREAK" || effect.kind === "BARRIER") {
     const caster = effect.playerId ?? "PLAYER_A";
-    return <SpellProjectileEffect source={[playerCameraX(roomX, caster, false), ROOM_CAMERA_Y[round] - 0.1, CAMERA_SPAWN_Z - 0.18]} target={[roomX, 0.62, MONSTER_Z + 0.05]} color={effect.kind === "ARMOR_BREAK" ? "#ffad27" : "#55f6ff"} twin={effect.kind === "BARRIER"} />;
+    return <SpellProjectileEffect source={[playerCameraX(roomX, caster, false), ROOM_CAMERA_Y[round] - 0.1, CAMERA_SPAWN_Z - 0.18]} target={monsterImpactPoint(round, roomX)} color={effect.kind === "ARMOR_BREAK" ? "#ffad27" : "#55f6ff"} twin={effect.kind === "BARRIER"} />;
   }
   return null;
-}
-
-function Enemy({ state, color }: { state: GameState; color: string }) {
-  const group = useRef<Group>(null);
-  const shielded = state.phase === "SHIELDED" || state.phase === "ARMOR_PHASE";
-  const { scene } = useGLTF(activeMonsterModelUrl(state.round));
-  const { scale, position } = MONSTER_TRANSFORM[state.round];
-
-  useEffect(() => {
-    scene.traverse((child) => {
-      child.castShadow = true;
-      child.receiveShadow = true;
-    });
-  }, [scene]);
-
-  useFrame((clock) => {
-    if (!group.current) return;
-    group.current.rotation.y = clock.clock.elapsedTime * 0.35;
-    group.current.rotation.x = Math.sin(clock.clock.elapsedTime * 0.5) * 0.12;
-  });
-
-  return (
-    <group position={[ROOM_CAMERA_X[state.round], 0.4, MONSTER_Z]}>
-      <Float speed={2} rotationIntensity={0.25} floatIntensity={0.4}>
-        <group ref={group} scale={scale} position={position}>
-          <primitive object={scene} />
-        </group>
-        {shielded && (
-          <mesh position={[0, 0.34, 0]}>
-            <sphereGeometry args={[0.4, 32, 32]} />
-            <meshPhysicalMaterial
-              color="#8cecff"
-              transmission={0.75}
-              transparent
-              opacity={0.35}
-              roughness={0.05}
-              thickness={0.25}
-            />
-          </mesh>
-        )}
-      </Float>
-      <Sparkles count={25} position={[0, 0.35, 0]} scale={0.9} size={1.2} speed={0.4} color={color} />
-    </group>
-  );
 }
 
 const EMBERMAW_CLIP = {
@@ -285,18 +241,15 @@ const HEXWYRM_CLIP = {
 
 const CROSSFADE_SECONDS = 0.2;
 const ROOT_BONE_NAME = "Hips";
-const EMBERMAW_REST_OFFSET_Z = 0.45;
-const EMBERMAW_REST_Z = MONSTER_Z + EMBERMAW_REST_OFFSET_Z;
+const EMBERMAW_REST_Z = MONSTER_REST_Z.EMBERMAW;
 const EMBERMAW_ENTRANCE_START_OFFSET_Z = -2.5;
 const EMBERMAW_ENTRANCE_START_Z = EMBERMAW_REST_Z + EMBERMAW_ENTRANCE_START_OFFSET_Z;
 const EMBERMAW_ENTRANCE_DURATION_MS = 3000;
-const SHARD_WARDEN_REST_OFFSET_Z = 0.45;
-const SHARD_WARDEN_REST_Z = MONSTER_Z + SHARD_WARDEN_REST_OFFSET_Z;
+const SHARD_WARDEN_REST_Z = MONSTER_REST_Z.SHARD_WARDEN;
 const SHARD_WARDEN_ENTRANCE_START_OFFSET_Z = -2.5;
 const SHARD_WARDEN_ENTRANCE_START_Z = SHARD_WARDEN_REST_Z + SHARD_WARDEN_ENTRANCE_START_OFFSET_Z;
 const SHARD_WARDEN_ENTRANCE_DURATION_MS = 3000;
-const HEXWYRM_REST_OFFSET_Z = 0.7;
-const HEXWYRM_REST_Z = MONSTER_Z + HEXWYRM_REST_OFFSET_Z;
+const HEXWYRM_REST_Z = MONSTER_REST_Z.HEXWYRM;
 const HEXWYRM_ENTRANCE_START_OFFSET_Z = -2.5;
 const HEXWYRM_ENTRANCE_START_Z = HEXWYRM_REST_Z + HEXWYRM_ENTRANCE_START_OFFSET_Z;
 const HEXWYRM_ENTRANCE_DURATION_MS = 3000;
@@ -345,6 +298,7 @@ function AnimatedEmbermaw({ state, color }: { state: GameState; color: string })
   const group = useRef<Group>(null);
   const entranceGroup = useRef<Group>(null);
   const entranceStartAt = useRef<number | null>(null);
+  const defeatedRef = useRef(false);
   const walking = useGLTF(EMBERMAW_ANIMATION_URLS.walking);
   const zombieScream = useGLTF(EMBERMAW_ANIMATION_URLS.zombieScream);
   const jumpingPunch = useGLTF(EMBERMAW_ANIMATION_URLS.jumpingPunch);
@@ -382,6 +336,7 @@ function AnimatedEmbermaw({ state, color }: { state: GameState; color: string })
 
   useEffect(() => {
     const onFinished = (event: { action: AnimationAction }) => {
+      if (defeatedRef.current) return;
       if (event.action === actions[EMBERMAW_CLIP.zombieScream] || event.action === actions[EMBERMAW_CLIP.jumpingPunch]) {
         crossfadeTo(actions, EMBERMAW_CLIP.walking, { once: false });
       }
@@ -392,10 +347,18 @@ function AnimatedEmbermaw({ state, color }: { state: GameState; color: string })
 
   useEffect(() => {
     const previous = prev.current;
-    if (state.round === "EMBERMAW" && previous.round === "EMBERMAW" && state.enemyHp < previous.enemyHp && state.enemyHp > 0) {
+    // Clearing the tutorial re-enters EMBERMAW without changing `round`, so this component
+    // survives the transition still clamped on falling_down. Rising HP means a fresh encounter.
+    if (state.enemyHp > previous.enemyHp) {
+      defeatedRef.current = false;
+      entranceStartAt.current = performance.now();
+      crossfadeTo(actions, EMBERMAW_CLIP.walking, { once: false });
+    }
+    if (tookNonFatalHit(previous, state, "EMBERMAW")) {
       crossfadeTo(actions, EMBERMAW_CLIP.zombieScream, { once: true });
     }
     if ((previous.round === "EMBERMAW" && state.round !== "EMBERMAW") || (previous.status !== "MONSTER_DEFEATED" && state.status === "MONSTER_DEFEATED")) {
+      defeatedRef.current = true;
       crossfadeTo(actions, EMBERMAW_CLIP.fallingDown, { once: true, clampWhenFinished: true });
     }
     if (state.round === "EMBERMAW" && previous.round === "EMBERMAW" && state.enemyAttackCount > previous.enemyAttackCount) {
@@ -422,12 +385,10 @@ function AnimatedEmbermaw({ state, color }: { state: GameState; color: string })
   });
 
   return (
-    <group ref={entranceGroup} position={[ROOM_CAMERA_X.EMBERMAW, 0.4, EMBERMAW_ENTRANCE_START_Z]}>
-      <Float speed={2} rotationIntensity={0.15} floatIntensity={0.3}>
-        <group ref={group} scale={scale} position={position}>
-          <primitive object={walking.scene} />
-        </group>
-      </Float>
+    <group ref={entranceGroup} position={[ROOM_CAMERA_X.EMBERMAW, MONSTER_GROUND_Y.EMBERMAW, EMBERMAW_ENTRANCE_START_Z]}>
+      <group ref={group} scale={scale} position={position}>
+        <primitive object={walking.scene} />
+      </group>
       <Sparkles count={25} position={[0, 0.35, 0]} scale={0.9} size={1.2} speed={0.4} color={color} />
     </group>
   );
@@ -437,6 +398,7 @@ function AnimatedShardWarden({ state, color }: { state: GameState; color: string
   const group = useRef<Group>(null);
   const entranceGroup = useRef<Group>(null);
   const entranceStartAt = useRef<number | null>(null);
+  const defeatedRef = useRef(false);
   const shielded = state.phase === "SHIELDED" || state.phase === "ARMOR_PHASE";
   const walking = useGLTF(SHARD_WARDEN_ANIMATION_URLS.walking);
   const skill03 = useGLTF(SHARD_WARDEN_ANIMATION_URLS.skill03);
@@ -473,6 +435,7 @@ function AnimatedShardWarden({ state, color }: { state: GameState; color: string
 
   useEffect(() => {
     const onFinished = (event: { action: AnimationAction }) => {
+      if (defeatedRef.current) return;
       if (event.action === actions[SHARD_WARDEN_CLIP.skill03] || event.action === actions[SHARD_WARDEN_CLIP.tripleComboAttack]) {
         crossfadeTo(actions, SHARD_WARDEN_CLIP.walking, { once: false });
       }
@@ -487,6 +450,7 @@ function AnimatedShardWarden({ state, color }: { state: GameState; color: string
       crossfadeTo(actions, SHARD_WARDEN_CLIP.skill03, { once: true });
     }
     if ((previous.round === "SHARD_WARDEN" && state.round !== "SHARD_WARDEN") || (previous.status !== "MONSTER_DEFEATED" && state.status === "MONSTER_DEFEATED")) {
+      defeatedRef.current = true;
       crossfadeTo(actions, SHARD_WARDEN_CLIP.shotInTheBackAndFall, { once: true, clampWhenFinished: true });
     }
     if (state.round === "SHARD_WARDEN" && previous.round === "SHARD_WARDEN" && state.enemyAttackCount > previous.enemyAttackCount) {
@@ -507,25 +471,23 @@ function AnimatedShardWarden({ state, color }: { state: GameState; color: string
   });
 
   return (
-    <group ref={entranceGroup} position={[ROOM_CAMERA_X.SHARD_WARDEN, 0.4, SHARD_WARDEN_ENTRANCE_START_Z]}>
-      <Float speed={2} rotationIntensity={0.15} floatIntensity={0.3}>
-        <group ref={group} scale={scale} position={position}>
-          <primitive object={walking.scene} />
-        </group>
-        {shielded && (
-          <mesh position={[0, 0.34, 0]}>
-            <sphereGeometry args={[0.4, 32, 32]} />
-            <meshPhysicalMaterial
-              color="#8cecff"
-              transmission={0.75}
-              transparent
-              opacity={0.35}
-              roughness={0.05}
-              thickness={0.25}
-            />
-          </mesh>
-        )}
-      </Float>
+    <group ref={entranceGroup} position={[ROOM_CAMERA_X.SHARD_WARDEN, MONSTER_GROUND_Y.SHARD_WARDEN, SHARD_WARDEN_ENTRANCE_START_Z]}>
+      <group ref={group} scale={scale} position={position}>
+        <primitive object={walking.scene} />
+      </group>
+      {shielded && (
+        <mesh position={[0, monsterShieldCentreY("SHARD_WARDEN"), 0]}>
+          <sphereGeometry args={[monsterShieldRadius("SHARD_WARDEN"), 32, 32]} />
+          <meshPhysicalMaterial
+            color="#8cecff"
+            transmission={0.75}
+            transparent
+            opacity={0.35}
+            roughness={0.05}
+            thickness={0.25}
+          />
+        </mesh>
+      )}
       <Sparkles count={25} position={[0, 0.35, 0]} scale={0.9} size={1.2} speed={0.4} color={color} />
     </group>
   );
@@ -535,6 +497,7 @@ function AnimatedHexwyrm({ state, color }: { state: GameState; color: string }) 
   const group = useRef<Group>(null);
   const entranceGroup = useRef<Group>(null);
   const entranceStartAt = useRef<number | null>(null);
+  const defeatedRef = useRef(false);
   const shielded = state.phase === "SHIELDED" || state.phase === "ARMOR_PHASE";
   const walking = useGLTF(HEXWYRM_ANIMATION_URLS.walking);
   const zombieScream = useGLTF(HEXWYRM_ANIMATION_URLS.zombieScream);
@@ -568,6 +531,7 @@ function AnimatedHexwyrm({ state, color }: { state: GameState; color: string }) 
 
   useEffect(() => {
     const onFinished = (event: { action: AnimationAction }) => {
+      if (defeatedRef.current) return;
       if (event.action === actions[HEXWYRM_CLIP.zombieScream] || event.action === actions[HEXWYRM_CLIP.crouchChargeAndThrow]) {
         crossfadeTo(actions, HEXWYRM_CLIP.walking, { once: false });
       }
@@ -587,6 +551,7 @@ function AnimatedHexwyrm({ state, color }: { state: GameState; color: string }) 
       crossfadeTo(actions, HEXWYRM_CLIP.zombieScream, { once: true });
     }
     if (previous.status !== "MONSTER_DEFEATED" && state.status === "MONSTER_DEFEATED") {
+      defeatedRef.current = true;
       crossfadeTo(actions, HEXWYRM_CLIP.shotAndFallBackward, { once: true, clampWhenFinished: true });
     }
     if (state.round === "HEXWYRM" && state.enemyAttackCount > previous.enemyAttackCount) {
@@ -607,25 +572,23 @@ function AnimatedHexwyrm({ state, color }: { state: GameState; color: string }) 
   });
 
   return (
-    <group ref={entranceGroup} position={[ROOM_CAMERA_X.HEXWYRM, 0.4, HEXWYRM_ENTRANCE_START_Z]}>
-      <Float speed={2} rotationIntensity={0.15} floatIntensity={0.3}>
-        <group ref={group} scale={scale} position={position}>
-          <primitive object={walking.scene} />
-        </group>
-        {shielded && (
-          <mesh position={[0, 0.34, 0]}>
-            <sphereGeometry args={[0.4, 32, 32]} />
-            <meshPhysicalMaterial
-              color="#8cecff"
-              transmission={0.75}
-              transparent
-              opacity={0.35}
-              roughness={0.05}
-              thickness={0.25}
-            />
-          </mesh>
-        )}
-      </Float>
+    <group ref={entranceGroup} position={[ROOM_CAMERA_X.HEXWYRM, MONSTER_GROUND_Y.HEXWYRM, HEXWYRM_ENTRANCE_START_Z]}>
+      <group ref={group} scale={scale} position={position}>
+        <primitive object={walking.scene} />
+      </group>
+      {shielded && (
+        <mesh position={[0, monsterShieldCentreY("HEXWYRM"), 0]}>
+          <sphereGeometry args={[monsterShieldRadius("HEXWYRM"), 32, 32]} />
+          <meshPhysicalMaterial
+            color="#8cecff"
+            transmission={0.75}
+            transparent
+            opacity={0.35}
+            roughness={0.05}
+            thickness={0.25}
+          />
+        </mesh>
+      )}
       <Sparkles count={25} position={[0, 0.35, 0]} scale={0.9} size={1.2} speed={0.4} color={color} />
     </group>
   );
@@ -651,12 +614,13 @@ class ArenaErrorBoundary extends Component<{ children: ReactNode; resetKey: stri
   }
 }
 
-export function Arena({ state, playerId, enemyColor, now = 0, preview = false, resetKey = 0, onAssetLoaded, onAssetError }: { state: GameState; playerId: PlayerId; enemyColor: string; now?: number; preview?: boolean; resetKey?: number; onAssetLoaded?: (assetUrl: string) => void; onAssetError?: (error: Error) => void }) {
+// Takes `shielded` as a boolean instead of App.tsx's 100ms `now` clock, which used to reconcile
+// this whole react-three-fiber tree ten times a second.
+function ArenaScene({ state, playerId, enemyColor, shielded = false, preview = false, resetKey = 0, onAssetLoaded, onAssetError }: { state: GameState; playerId: PlayerId; enemyColor: string; shielded?: boolean; preview?: boolean; resetKey?: number; onAssetLoaded?: (assetUrl: string) => void; onAssetError?: (error: Error) => void }) {
   const [visibleRound, setVisibleRound] = useState(state.round);
   const roomX = ROOM_CAMERA_X[visibleRound];
   const cameraX = playerCameraX(roomX, playerId, preview);
-  const shielded = state.status === "PLAYING" && Object.values(state.players).some((player) => player.shieldedUntil > now);
-  const requiredAssets = arenaAssetUrlsForRound(state.round);
+  const requiredAssets = useMemo(() => arenaAssetUrlsForRound(state.round), [state.round]);
 
   useEffect(() => {
     if (visibleRound === state.round) return;
@@ -699,10 +663,8 @@ export function Arena({ state, playerId, enemyColor, now = 0, preview = false, r
             <AnimatedEmbermaw state={state} color={enemyColor} />
           ) : visibleRound === "SHARD_WARDEN" ? (
             <AnimatedShardWarden state={state} color={enemyColor} />
-          ) : visibleRound === "HEXWYRM" ? (
-            <AnimatedHexwyrm state={state} color={enemyColor} />
           ) : (
-            <Enemy state={state} color={enemyColor} />
+            <AnimatedHexwyrm state={state} color={enemyColor} />
           )}
           <PlayerPositions roomX={roomX} />
           {state.effect && <SpellEffect key={state.effect.id} roomX={roomX} round={state.round} effect={state.effect} />}
@@ -715,3 +677,5 @@ export function Arena({ state, playerId, enemyColor, now = 0, preview = false, r
     </ArenaErrorBoundary>
   );
 }
+
+export const Arena = memo(ArenaScene);

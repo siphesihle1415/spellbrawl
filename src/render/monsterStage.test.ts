@@ -1,0 +1,112 @@
+import { describe, expect, it } from "vitest";
+import type { RoundId } from "../game/types";
+import { EMBERMAW_ANIMATED_TRANSFORM, HEXWYRM_ANIMATED_TRANSFORM, SHARD_WARDEN_ANIMATED_TRANSFORM } from "../game/monsters";
+import { CAMERA_SPAWN_Z, MONSTER_GROUND_Y, MONSTER_REST_Z, monsterImpactPoint, monsterShieldCentreY, monsterShieldRadius, starfallImpactPoint } from "./monsterStage";
+
+// Body extents measured with a Box3 around each rendered rig in the running app, Float wobble
+// included: the mesh sits within ~0.15 of its room centre, spans y 0.66-1.05, and reaches ~0.09
+// either side of its rest position in z. Kept a little tighter than the measurements so a passing
+// impact point is comfortably inside the torso rather than clipping an outstretched limb.
+const BODY = { halfWidth: 0.12, minY: 0.72, maxY: 1.0, halfDepth: 0.08 };
+const ROOM_X: Record<RoundId, number> = { EMBERMAW: 0, SHARD_WARDEN: 1.4, HEXWYRM: -1.4 };
+
+describe("monsterImpactPoint", () => {
+  for (const round of ["EMBERMAW", "SHARD_WARDEN", "HEXWYRM"] as const) {
+    it(`lands inside ${round}'s body where it stands`, () => {
+      const roomX = ROOM_X[round];
+      const [x, y, z] = monsterImpactPoint(round, roomX);
+      expect(Math.abs(x - roomX)).toBeLessThanOrEqual(BODY.halfWidth);
+      expect(y).toBeGreaterThanOrEqual(BODY.minY);
+      expect(y).toBeLessThanOrEqual(BODY.maxY);
+      expect(Math.abs(z - MONSTER_REST_Z[round])).toBeLessThanOrEqual(BODY.halfDepth);
+    });
+  }
+});
+
+// Raycast onto the arena mesh in the running app, straight down through each monster's rest spot.
+// The three rooms do not share a floor height, which is why one hardcoded y left Embermaw sunk
+// into its stage disc and Hexwyrm hovering 0.135 above its own.
+const FLOOR_Y: Record<RoundId, number> = { EMBERMAW: 0.734, SHARD_WARDEN: 0.615, HEXWYRM: 0.548 };
+// How far each rig's lowest foot bone sits below its animated group's origin, measured per frame
+// in the running app. Read off the skeleton, not a bounding box: Shard Warden and Hexwyrm export
+// with mesh bounds that do not track their skeleton at all (a Box3 around them spans 0.071 for a
+// model 0.35 tall), so grounding on that box buried both of them ~0.055 into the floor.
+const FEET_BELOW_ORIGIN: Record<RoundId, number> = { EMBERMAW: -0.003, SHARD_WARDEN: 0, HEXWYRM: -0.003 };
+const GROUP_OFFSET_Y: Record<RoundId, number> = {
+  EMBERMAW: EMBERMAW_ANIMATED_TRANSFORM.position[1],
+  SHARD_WARDEN: SHARD_WARDEN_ANIMATED_TRANSFORM.position[1],
+  HEXWYRM: HEXWYRM_ANIMATED_TRANSFORM.position[1],
+};
+
+describe("MONSTER_GROUND_Y", () => {
+  for (const round of ["EMBERMAW", "SHARD_WARDEN", "HEXWYRM"] as const) {
+    it(`stands ${round} on its own room's floor`, () => {
+      const feet = MONSTER_GROUND_Y[round] + GROUP_OFFSET_Y[round] - FEET_BELOW_ORIGIN[round];
+      expect(feet).toBeCloseTo(FLOOR_Y[round], 2);
+    });
+  }
+});
+
+// Half-diagonal of each shielded monster's skeleton, measured in the running app. The bubble has
+// to stay comfortably outside this or it clips through the body it is meant to be protecting.
+const BODY_HALF_DIAGONAL: Record<"SHARD_WARDEN" | "HEXWYRM", number> = { SHARD_WARDEN: 0.162, HEXWYRM: 0.170 };
+const angularSize = (round: "SHARD_WARDEN" | "HEXWYRM") =>
+  2 * Math.atan(monsterShieldRadius(round) / (CAMERA_SPAWN_Z - MONSTER_REST_Z[round]));
+
+describe("monsterShieldRadius", () => {
+  it("draws both shields at the same size on screen", () => {
+    // A fixed world radius reads as a different bubble per room, because the rooms are not viewed
+    // from the same distance: 0.4 subtends 58 degrees around Shard Warden but 77 around Hexwyrm.
+    expect(angularSize("HEXWYRM")).toBeCloseTo(angularSize("SHARD_WARDEN"), 3);
+  });
+
+  it("keeps Shard Warden's bubble at the size that already looked right", () => {
+    expect(monsterShieldRadius("SHARD_WARDEN")).toBeCloseTo(0.4, 3);
+  });
+
+  for (const round of ["SHARD_WARDEN", "HEXWYRM"] as const) {
+    it(`clears ${round}'s body`, () => {
+      expect(monsterShieldRadius(round)).toBeGreaterThan(BODY_HALF_DIAGONAL[round] * 1.25);
+    });
+  }
+});
+
+// Height of each shielded monster's topmost head bone above its animated group's origin, measured
+// in the running app. Stored relative to the origin rather than in world space so it survives the
+// monster being raised or lowered onto a different room's floor.
+const HEAD_TOP_ABOVE_ORIGIN: Record<"SHARD_WARDEN" | "HEXWYRM", number> = { SHARD_WARDEN: 0.597, HEXWYRM: 0.579 };
+const headClearance = (round: "SHARD_WARDEN" | "HEXWYRM") =>
+  monsterShieldCentreY(round) + monsterShieldRadius(round) - HEAD_TOP_ABOVE_ORIGIN[round];
+
+describe("monsterShieldCentreY", () => {
+  it("leaves Shard Warden's bubble where it already sat", () => {
+    expect(monsterShieldCentreY("SHARD_WARDEN")).toBeCloseTo(0.34, 3);
+  });
+
+  for (const round of ["SHARD_WARDEN", "HEXWYRM"] as const) {
+    it(`closes over ${round}'s head`, () => {
+      // Hexwyrm's bubble used to clear its head bone by 0.037 against the Warden's 0.143, so the
+      // dragon's crest broke through the top of the dome.
+      expect(headClearance(round)).toBeGreaterThan(0.3 * monsterShieldRadius(round));
+    });
+  }
+
+  it("gives both monsters the same headroom relative to their bubble", () => {
+    expect(headClearance("HEXWYRM") / monsterShieldRadius("HEXWYRM"))
+      .toBeCloseTo(headClearance("SHARD_WARDEN") / monsterShieldRadius("SHARD_WARDEN"), 3);
+  });
+});
+
+describe("starfallImpactPoint", () => {
+  for (const round of ["EMBERMAW", "SHARD_WARDEN", "HEXWYRM"] as const) {
+    it(`drops the column onto ${round} rather than the empty monster slot`, () => {
+      const [x, y, z] = starfallImpactPoint(round, ROOM_X[round]);
+      // The shockwave ring sits at the base of the column, so it belongs at the monster's feet —
+      // tied to the same grounding chain that seats the model, not to a separate literal.
+      const feet = MONSTER_GROUND_Y[round] + GROUP_OFFSET_Y[round] - FEET_BELOW_ORIGIN[round];
+      expect(x).toBe(ROOM_X[round]);
+      expect(y).toBeCloseTo(feet, 2);
+      expect(z).toBeCloseTo(MONSTER_REST_Z[round], 3);
+    });
+  }
+});

@@ -201,7 +201,14 @@ export function WebcamPreview({ onGesture, onGestureEnd, onReadyChange, active, 
       const canvas = canvasRef.current;
       const source = new MediaPipeGestureSource(videoRef.current, {
         onFrame: (hands, poseResult) => {
-          setPose(poseResult);
+          // The classifier returns a fresh object every sampled frame; only re-render when the
+          // displayed reading actually changes.
+          setPose((current) => {
+            if (!current || !poseResult) return poseResult;
+            const sameReading = current.gesture === poseResult.gesture
+              && Math.round(current.confidence * 100) === Math.round(poseResult.confidence * 100);
+            return sameReading ? current : poseResult;
+          });
           clearPoseExpiry();
           if (!poseResult) {
             if (poseWasPresentRef.current) onGestureEndRef.current();
