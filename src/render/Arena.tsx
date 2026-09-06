@@ -6,6 +6,7 @@ import { ARENA_SCENE_URL, arenaAssetUrlsForRound } from "../game/assets";
 import { DEFEAT_HOLD_MS, EMBERMAW_ANIMATED_TRANSFORM, EMBERMAW_ANIMATION_URLS, HEXWYRM_ANIMATED_TRANSFORM, HEXWYRM_ANIMATION_URLS, ROUND_ANIMATION_URLS, SHARD_WARDEN_ANIMATED_TRANSFORM, SHARD_WARDEN_ANIMATION_URLS } from "../game/monsters";
 import type { CombatEffect, GameState, PlayerId } from "../game/types";
 import { FireballEffect } from "./FireballEffect";
+import { tookNonFatalHit } from "./monsterReaction";
 import { SpellProjectileEffect } from "./SpellProjectileEffect";
 import { playerCameraX } from "./playerCamera";
 
@@ -357,7 +358,7 @@ function AnimatedEmbermaw({ state, color }: { state: GameState; color: string })
       entranceStartAt.current = performance.now();
       crossfadeTo(actions, EMBERMAW_CLIP.walking, { once: false });
     }
-    if (state.round === "EMBERMAW" && previous.round === "EMBERMAW" && state.enemyHp < previous.enemyHp && state.enemyHp > 0) {
+    if (tookNonFatalHit(previous, state, "EMBERMAW")) {
       crossfadeTo(actions, EMBERMAW_CLIP.zombieScream, { once: true });
     }
     if ((previous.round === "EMBERMAW" && state.round !== "EMBERMAW") || (previous.status !== "MONSTER_DEFEATED" && state.status === "MONSTER_DEFEATED")) {
