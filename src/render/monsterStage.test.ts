@@ -26,7 +26,7 @@ describe("monsterImpactPoint", () => {
 // Raycast onto the arena mesh in the running app, straight down through each monster's rest spot.
 // The three rooms do not share a floor height, which is why one hardcoded y left Embermaw sunk
 // into its stage disc and Hexwyrm hovering 0.135 above its own.
-const FLOOR_Y: Record<RoundId, number> = { EMBERMAW: 0.734, SHARD_WARDEN: 0.616, HEXWYRM: 0.548 };
+const FLOOR_Y: Record<RoundId, number> = { EMBERMAW: 0.734, SHARD_WARDEN: 0.615, HEXWYRM: 0.548 };
 // How far each rig's lowest vertex sits below its animated group's origin, measured from the
 // rendered models with the float bob switched off.
 const FEET_BELOW_ORIGIN: Record<RoundId, number> = { EMBERMAW: 0.012, SHARD_WARDEN: 0, HEXWYRM: 0.017 };
@@ -43,4 +43,15 @@ describe("MONSTER_GROUND_Y", () => {
       expect(feet).toBeCloseTo(FLOOR_Y[round], 2);
     });
   }
+});
+
+describe("MONSTER_REST_Z", () => {
+  it("keeps every monster the same distance from the camera", () => {
+    // On-screen size falls off with distance, so a monster parked further back reads as a smaller
+    // creature even when the models are the same height in world space (all three measure ~0.35).
+    // Shard Warden used to rest 0.25 behind the other two and rendered 222px tall against their
+    // 320px — a third smaller, purely from perspective.
+    const restZ = Object.values(MONSTER_REST_Z);
+    expect(Math.max(...restZ) - Math.min(...restZ)).toBeLessThanOrEqual(0.05);
+  });
 });

@@ -10,9 +10,13 @@ export const MONSTER_Z = -0.85;
 // Embermaw's 0.7 puts it on the middle room's raised stage disc, which ends at z = -0.4: the
 // earlier 0.45 left it resting on that back rim among the rock props behind it, reading as
 // scenery rather than as the boss. Hexwyrm's room is open floor, where 0.7 already framed well.
+//
+// All three share the 0.7 so they hold the same distance from the camera and therefore read at
+// the same size: the models are within 1.5% of each other in world height, so any gap here shows
+// up purely as one monster looking smaller than the rest.
 export const MONSTER_REST_Z: Record<RoundId, number> = {
   EMBERMAW: MONSTER_Z + 0.7,
-  SHARD_WARDEN: MONSTER_Z + 0.45,
+  SHARD_WARDEN: MONSTER_Z + 0.7,
   HEXWYRM: MONSTER_Z + 0.7,
 };
 
@@ -33,6 +37,6 @@ export function monsterImpactPoint(round: RoundId, roomX: number): [number, numb
 // buried Embermaw 0.046 into its stage disc and left Hexwyrm hovering 0.135 above its floor.
 export const MONSTER_GROUND_Y: Record<RoundId, number> = {
   EMBERMAW: 0.446,
-  SHARD_WARDEN: 0.316,
+  SHARD_WARDEN: 0.315,
   HEXWYRM: 0.265,
 };
