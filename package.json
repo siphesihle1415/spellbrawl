@@ -12,13 +12,7 @@
     "preview": "vite preview",
     "deploy:worker": "wrangler deploy",
     "test": "vitest run",
-    "test:e2e": "playwright test",
-    "assets:compress-embermaw-animations": "node scripts/compress-embermaw-animations.mjs",
-    "assets:compress-shardbound-colossus-animations": "node scripts/compress-shardbound-colossus-animations.mjs",
-    "assets:compress-voidwyrm-ascendant-animations": "node scripts/compress-voidwyrm-ascendant-animations.mjs",
-    "assets:strip-animation-clips": "node scripts/strip-animation-clips.mjs",
-    "assets:compress-textures": "node scripts/compress-textures.mjs",
-    "assets:compress-arena": "node scripts/compress-arena.mjs"
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.1",
