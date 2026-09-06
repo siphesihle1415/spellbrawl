@@ -7,7 +7,7 @@ import { DEFEAT_HOLD_MS, EMBERMAW_ANIMATED_TRANSFORM, EMBERMAW_ANIMATION_URLS, H
 import type { CombatEffect, GameState, PlayerId } from "../game/types";
 import { FireballEffect } from "./FireballEffect";
 import { tookNonFatalHit } from "./monsterReaction";
-import { CAMERA_SPAWN_Z, MONSTER_GROUND_Y, MONSTER_REST_Z, MONSTER_Z, monsterImpactPoint, monsterShieldRadius } from "./monsterStage";
+import { CAMERA_SPAWN_Z, MONSTER_GROUND_Y, MONSTER_REST_Z, MONSTER_Z, monsterImpactPoint, monsterShieldCentreY, monsterShieldRadius } from "./monsterStage";
 import { SpellProjectileEffect } from "./SpellProjectileEffect";
 import { playerCameraX } from "./playerCamera";
 
@@ -476,7 +476,7 @@ function AnimatedShardWarden({ state, color }: { state: GameState; color: string
         <primitive object={walking.scene} />
       </group>
       {shielded && (
-        <mesh position={[0, 0.34, 0]}>
+        <mesh position={[0, monsterShieldCentreY("SHARD_WARDEN"), 0]}>
           <sphereGeometry args={[monsterShieldRadius("SHARD_WARDEN"), 32, 32]} />
           <meshPhysicalMaterial
             color="#8cecff"
@@ -577,7 +577,7 @@ function AnimatedHexwyrm({ state, color }: { state: GameState; color: string }) 
         <primitive object={walking.scene} />
       </group>
       {shielded && (
-        <mesh position={[0, 0.34, 0]}>
+        <mesh position={[0, monsterShieldCentreY("HEXWYRM"), 0]}>
           <sphereGeometry args={[monsterShieldRadius("HEXWYRM"), 32, 32]} />
           <meshPhysicalMaterial
             color="#8cecff"

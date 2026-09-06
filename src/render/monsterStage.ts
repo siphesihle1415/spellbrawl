@@ -61,3 +61,17 @@ const SHIELD_RADIUS_PER_UNIT_DISTANCE = 0.4 / (CAMERA_SPAWN_Z - MONSTER_REST_Z.S
 export function monsterShieldRadius(round: RoundId): number {
   return SHIELD_RADIUS_PER_UNIT_DISTANCE * (CAMERA_SPAWN_Z - MONSTER_REST_Z[round]);
 }
+
+// Height of each shielded monster's topmost head bone above its animated group's origin, measured
+// in the running app. Relative to the origin, not world space, so it survives the monster being
+// re-seated on a different room's floor.
+const HEAD_TOP_ABOVE_ORIGIN: Record<"SHARD_WARDEN" | "HEXWYRM", number> = { SHARD_WARDEN: 0.597, HEXWYRM: 0.579 };
+// Shard Warden's bubble sits 0.143 above its head — 36% of its own radius — and reads right. Held
+// as a fraction of the radius so a smaller bubble rides correspondingly lower rather than being
+// pushed off the top of a monster it is meant to enclose.
+const SHIELD_HEAD_CLEARANCE = 0.143 / 0.4;
+
+export function monsterShieldCentreY(round: "SHARD_WARDEN" | "HEXWYRM"): number {
+  const radius = monsterShieldRadius(round);
+  return HEAD_TOP_ABOVE_ORIGIN[round] + SHIELD_HEAD_CLEARANCE * radius - radius;
+}

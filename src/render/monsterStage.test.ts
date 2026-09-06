@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RoundId } from "../game/types";
 import { EMBERMAW_ANIMATED_TRANSFORM, HEXWYRM_ANIMATED_TRANSFORM, SHARD_WARDEN_ANIMATED_TRANSFORM } from "../game/monsters";
-import { CAMERA_SPAWN_Z, MONSTER_GROUND_Y, MONSTER_REST_Z, monsterImpactPoint, monsterShieldRadius } from "./monsterStage";
+import { CAMERA_SPAWN_Z, MONSTER_GROUND_Y, MONSTER_REST_Z, monsterImpactPoint, monsterShieldCentreY, monsterShieldRadius } from "./monsterStage";
 
 // Body extents measured with a Box3 around each rendered rig in the running app, Float wobble
 // included: the mesh sits within ~0.15 of its room centre, spans y 0.66-1.05, and reaches ~0.09
@@ -69,4 +69,30 @@ describe("monsterShieldRadius", () => {
       expect(monsterShieldRadius(round)).toBeGreaterThan(BODY_HALF_DIAGONAL[round] * 1.25);
     });
   }
+});
+
+// Height of each shielded monster's topmost head bone above its animated group's origin, measured
+// in the running app. Stored relative to the origin rather than in world space so it survives the
+// monster being raised or lowered onto a different room's floor.
+const HEAD_TOP_ABOVE_ORIGIN: Record<"SHARD_WARDEN" | "HEXWYRM", number> = { SHARD_WARDEN: 0.597, HEXWYRM: 0.579 };
+const headClearance = (round: "SHARD_WARDEN" | "HEXWYRM") =>
+  monsterShieldCentreY(round) + monsterShieldRadius(round) - HEAD_TOP_ABOVE_ORIGIN[round];
+
+describe("monsterShieldCentreY", () => {
+  it("leaves Shard Warden's bubble where it already sat", () => {
+    expect(monsterShieldCentreY("SHARD_WARDEN")).toBeCloseTo(0.34, 3);
+  });
+
+  for (const round of ["SHARD_WARDEN", "HEXWYRM"] as const) {
+    it(`closes over ${round}'s head`, () => {
+      // Hexwyrm's bubble used to clear its head bone by 0.037 against the Warden's 0.143, so the
+      // dragon's crest broke through the top of the dome.
+      expect(headClearance(round)).toBeGreaterThan(0.3 * monsterShieldRadius(round));
+    });
+  }
+
+  it("gives both monsters the same headroom relative to their bubble", () => {
+    expect(headClearance("HEXWYRM") / monsterShieldRadius("HEXWYRM"))
+      .toBeCloseTo(headClearance("SHARD_WARDEN") / monsterShieldRadius("SHARD_WARDEN"), 3);
+  });
 });
