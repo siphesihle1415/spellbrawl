@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { requestRoundDialogue } from "./DialogueClient";
+import { requestRoundDialogue, type DialogueResult } from "./DialogueClient";
 import type { DialogueMonster } from "./providers";
 import type { GameStatus, RoundId } from "../game/types";
 
@@ -13,15 +13,21 @@ export function useRoundDialogue(
   monster: DialogueMonster,
 ) {
   const [linesByRound, setLinesByRound] = useState<RoundDialogueLines>({});
-  const requestedRounds = useRef<Set<RoundId>>(new Set());
+  const requests = useRef(new Map<RoundId, Promise<DialogueResult>>());
+  const { name, title, theme } = monster;
 
   useEffect(() => {
     if (!isHost || tutorial || status !== "DIALOGUE") return;
-    if (requestedRounds.current.has(round)) return;
-    requestedRounds.current.add(round);
+    // Reattach to the same request after effect cleanup (including StrictMode).
+    // The encounter object is recreated on every App render; depend on its fields.
+    let pending = requests.current.get(round);
+    if (!pending) {
+      pending = requestRoundDialogue(round, { name, title, theme });
+      requests.current.set(round, pending);
+    }
 
     let active = true;
-    requestRoundDialogue(round, monster).then((result) => {
+    pending.then((result) => {
       if (!active || result.source !== "ai" || !result.lines) return;
       setLinesByRound((prev) => ({ ...prev, [round]: result.lines! }));
     });
@@ -29,7 +35,7 @@ export function useRoundDialogue(
     return () => {
       active = false;
     };
-  }, [isHost, tutorial, status, round, monster]);
+  }, [isHost, tutorial, status, round, name, title, theme]);
 
   const applyRemoteDialogue = useCallback((remoteRound: RoundId, lines: unknown) => {
     if (!Array.isArray(lines) || lines.length !== 3 || lines.some((line) => typeof line !== "string")) return false;

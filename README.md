@@ -66,4 +66,16 @@ Repository-level CI secrets can be synchronized from a local ignored `.env` file
 
 The repository includes `netlify.toml`. Netlify must run `npm run build` and publish `dist`; publishing the repository root will not serve the compiled Vite application.
 
+### Debugging AI responses on Netlify
+
+`director`, `dialogue`, and `loader-facts` are Netlify Functions, not Edge Functions. In the Netlify project, open **Logs & Metrics > Functions**, select the function and deployment, and filter by the `x-spellbrawl-request-id` response header from your browser's Network tab. See [Netlify's function log instructions](https://docs.netlify.com/build/functions/logs/).
+
+Every invocation logs `function.start` and `function.complete` (or `function.error`). Provider calls log `llm.start`, `llm.response`, then `llm.complete` or `llm.fallback`. Records include the request ID, function name, operation, provider/model, duration, HTTP status where available, and the response source. `llm.skipped` means no provider request was made: its reason identifies `static_provider`, `missing_api_key`, or `missing_model`. Fallback reasons distinguish `timeout`, `http_error`, `network_error`, `invalid_json`, and `invalid_output`. Logs omit credentials, prompts, response bodies, and raw error messages.
+
+The release/mvp4 investigation found that production could return AI configuration successfully while loader facts returned fallback after approximately the 15-second server deadline. The old implementation hid the cause. Separately, dialogue responses were discarded after normal React rerenders because encounter object identity cancelled the pending effect. The hook now reuses its pending request and reattaches after cleanup.
+
+Ollama GPT-OSS requests use `think: "low"` to reduce reasoning latency; GPT-OSS cannot disable thinking entirely ([Ollama documentation](https://docs.ollama.com/capabilities/thinking)). `LLM_DIRECTOR_TIMEOUT_MS` remains configurable from 1,000 to 30,000 ms, defaulting to 15,000. The browser defaults to 35,000 ms to allow the maximum server deadline plus overhead. If overriding `VITE_DIRECTOR_TIMEOUT_MS`, keep it longer than the server timeout. Lower reasoning is a latency mitigation, not a guarantee that the provider will meet the deadline.
+
+GitHub Actions synchronizes provider variables only to Netlify's **production** context. Deploy Previews need their own provider credentials in the **Functions** scope; otherwise the expected result is `llm.skipped` with `missing_api_key`. Production secrets are not automatically copied to previews. The host requests the run configuration; round dialogue is requested by the host outside the tutorial. Loader facts are requested by the loading screens.
+
 See [the game documentation](docs/README.md) for the scope, architecture, implementation plan, contracts, and validation checklist.
