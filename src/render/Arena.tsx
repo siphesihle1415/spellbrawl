@@ -1,4 +1,4 @@
-import { Float, PointerLockControls, Sparkles, useAnimations, useGLTF } from "@react-three/drei";
+import { PointerLockControls, Sparkles, useAnimations, useGLTF } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Component, memo, Suspense, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from "react";
 import { AdditiveBlending, BackSide, LoopOnce, MathUtils, Mesh, Vector3, type AnimationAction, type AnimationClip, type Group, type Object3D, type PointLight } from "three";
@@ -387,14 +387,9 @@ function AnimatedEmbermaw({ state, color }: { state: GameState; color: string })
 
   return (
     <group ref={entranceGroup} position={[ROOM_CAMERA_X.EMBERMAW, MONSTER_GROUND_Y.EMBERMAW, EMBERMAW_ENTRANCE_START_Z]}>
-      {/* floatIntensity 0: the bob lifted the rigs ~0.058 clear of the floor, which read as
-          hovering while they walked and left the death clips settling in mid-air. The gentle
-          rotation stays — it never breaks contact with the ground. */}
-      <Float speed={2} rotationIntensity={0.15} floatIntensity={0}>
-        <group ref={group} scale={scale} position={position}>
-          <primitive object={walking.scene} />
-        </group>
-      </Float>
+      <group ref={group} scale={scale} position={position}>
+        <primitive object={walking.scene} />
+      </group>
       <Sparkles count={25} position={[0, 0.35, 0]} scale={0.9} size={1.2} speed={0.4} color={color} />
     </group>
   );
@@ -478,24 +473,22 @@ function AnimatedShardWarden({ state, color }: { state: GameState; color: string
 
   return (
     <group ref={entranceGroup} position={[ROOM_CAMERA_X.SHARD_WARDEN, MONSTER_GROUND_Y.SHARD_WARDEN, SHARD_WARDEN_ENTRANCE_START_Z]}>
-      <Float speed={2} rotationIntensity={0.15} floatIntensity={0}>
-        <group ref={group} scale={scale} position={position}>
-          <primitive object={walking.scene} />
-        </group>
-        {shielded && (
-          <mesh position={[0, 0.34, 0]}>
-            <sphereGeometry args={[0.4, 32, 32]} />
-            <meshPhysicalMaterial
-              color="#8cecff"
-              transmission={0.75}
-              transparent
-              opacity={0.35}
-              roughness={0.05}
-              thickness={0.25}
-            />
-          </mesh>
-        )}
-      </Float>
+      <group ref={group} scale={scale} position={position}>
+        <primitive object={walking.scene} />
+      </group>
+      {shielded && (
+        <mesh position={[0, 0.34, 0]}>
+          <sphereGeometry args={[0.4, 32, 32]} />
+          <meshPhysicalMaterial
+            color="#8cecff"
+            transmission={0.75}
+            transparent
+            opacity={0.35}
+            roughness={0.05}
+            thickness={0.25}
+          />
+        </mesh>
+      )}
       <Sparkles count={25} position={[0, 0.35, 0]} scale={0.9} size={1.2} speed={0.4} color={color} />
     </group>
   );
@@ -581,24 +574,22 @@ function AnimatedHexwyrm({ state, color }: { state: GameState; color: string }) 
 
   return (
     <group ref={entranceGroup} position={[ROOM_CAMERA_X.HEXWYRM, MONSTER_GROUND_Y.HEXWYRM, HEXWYRM_ENTRANCE_START_Z]}>
-      <Float speed={2} rotationIntensity={0.15} floatIntensity={0}>
-        <group ref={group} scale={scale} position={position}>
-          <primitive object={walking.scene} />
-        </group>
-        {shielded && (
-          <mesh position={[0, 0.34, 0]}>
-            <sphereGeometry args={[0.4, 32, 32]} />
-            <meshPhysicalMaterial
-              color="#8cecff"
-              transmission={0.75}
-              transparent
-              opacity={0.35}
-              roughness={0.05}
-              thickness={0.25}
-            />
-          </mesh>
-        )}
-      </Float>
+      <group ref={group} scale={scale} position={position}>
+        <primitive object={walking.scene} />
+      </group>
+      {shielded && (
+        <mesh position={[0, 0.34, 0]}>
+          <sphereGeometry args={[0.4, 32, 32]} />
+          <meshPhysicalMaterial
+            color="#8cecff"
+            transmission={0.75}
+            transparent
+            opacity={0.35}
+            roughness={0.05}
+            thickness={0.25}
+          />
+        </mesh>
+      )}
       <Sparkles count={25} position={[0, 0.35, 0]} scale={0.9} size={1.2} speed={0.4} color={color} />
     </group>
   );
