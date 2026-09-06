@@ -7,6 +7,7 @@ import { DEFEAT_HOLD_MS, EMBERMAW_ANIMATED_TRANSFORM, EMBERMAW_ANIMATION_URLS, H
 import type { CombatEffect, GameState, PlayerId } from "../game/types";
 import { FireballEffect } from "./FireballEffect";
 import { tookNonFatalHit } from "./monsterReaction";
+import { MONSTER_REST_Z, MONSTER_Z, monsterImpactPoint } from "./monsterStage";
 import { SpellProjectileEffect } from "./SpellProjectileEffect";
 import { playerCameraX } from "./playerCamera";
 
@@ -22,7 +23,6 @@ const ROOM_CAMERA_Y: Record<GameState["round"], number> = {
   HEXWYRM: 0.78,
 };
 const CAMERA_SPAWN_Z = 0.35;
-const MONSTER_Z = -0.85;
 const PREVIEW_SPEED = 0.7;
 const PREVIEW_BOUNDS = { minX: -2, maxX: 2, minZ: -1.15, maxZ: 1.15 };
 function AssetReadiness({ assetUrl, onAssetLoaded }: { assetUrl: string; onAssetLoaded?: (assetUrl: string) => void }) {
@@ -207,14 +207,14 @@ function SpellEffect({ roomX, round, effect }: { roomX: number; round: GameState
     return (
       <FireballEffect
         source={[playerCameraX(roomX, caster, false), ROOM_CAMERA_Y[round] - 0.12, CAMERA_SPAWN_Z - 0.2]}
-        target={[roomX, 0.62, MONSTER_Z + 0.05]}
+        target={monsterImpactPoint(round, roomX)}
       />
     );
   }
   if (effect.kind === "STARFALL") return <StarfallEffect roomX={roomX} />;
   if (effect.kind === "ARMOR_BREAK" || effect.kind === "BARRIER") {
     const caster = effect.playerId ?? "PLAYER_A";
-    return <SpellProjectileEffect source={[playerCameraX(roomX, caster, false), ROOM_CAMERA_Y[round] - 0.1, CAMERA_SPAWN_Z - 0.18]} target={[roomX, 0.62, MONSTER_Z + 0.05]} color={effect.kind === "ARMOR_BREAK" ? "#ffad27" : "#55f6ff"} twin={effect.kind === "BARRIER"} />;
+    return <SpellProjectileEffect source={[playerCameraX(roomX, caster, false), ROOM_CAMERA_Y[round] - 0.1, CAMERA_SPAWN_Z - 0.18]} target={monsterImpactPoint(round, roomX)} color={effect.kind === "ARMOR_BREAK" ? "#ffad27" : "#55f6ff"} twin={effect.kind === "BARRIER"} />;
   }
   return null;
 }
@@ -242,22 +242,15 @@ const HEXWYRM_CLIP = {
 
 const CROSSFADE_SECONDS = 0.2;
 const ROOT_BONE_NAME = "Hips";
-// Far enough forward to stand on the middle room's raised stage disc, which ends at z = -0.4:
-// resting on that back rim left Embermaw among the rock props behind it, reading as scenery
-// rather than as the boss. Matches HEXWYRM_REST_OFFSET_Z below, the one monster whose room is
-// open floor and which already framed correctly.
-const EMBERMAW_REST_OFFSET_Z = 0.7;
-const EMBERMAW_REST_Z = MONSTER_Z + EMBERMAW_REST_OFFSET_Z;
+const EMBERMAW_REST_Z = MONSTER_REST_Z.EMBERMAW;
 const EMBERMAW_ENTRANCE_START_OFFSET_Z = -2.5;
 const EMBERMAW_ENTRANCE_START_Z = EMBERMAW_REST_Z + EMBERMAW_ENTRANCE_START_OFFSET_Z;
 const EMBERMAW_ENTRANCE_DURATION_MS = 3000;
-const SHARD_WARDEN_REST_OFFSET_Z = 0.45;
-const SHARD_WARDEN_REST_Z = MONSTER_Z + SHARD_WARDEN_REST_OFFSET_Z;
+const SHARD_WARDEN_REST_Z = MONSTER_REST_Z.SHARD_WARDEN;
 const SHARD_WARDEN_ENTRANCE_START_OFFSET_Z = -2.5;
 const SHARD_WARDEN_ENTRANCE_START_Z = SHARD_WARDEN_REST_Z + SHARD_WARDEN_ENTRANCE_START_OFFSET_Z;
 const SHARD_WARDEN_ENTRANCE_DURATION_MS = 3000;
-const HEXWYRM_REST_OFFSET_Z = 0.7;
-const HEXWYRM_REST_Z = MONSTER_Z + HEXWYRM_REST_OFFSET_Z;
+const HEXWYRM_REST_Z = MONSTER_REST_Z.HEXWYRM;
 const HEXWYRM_ENTRANCE_START_OFFSET_Z = -2.5;
 const HEXWYRM_ENTRANCE_START_Z = HEXWYRM_REST_Z + HEXWYRM_ENTRANCE_START_OFFSET_Z;
 const HEXWYRM_ENTRANCE_DURATION_MS = 3000;
