@@ -4,6 +4,9 @@ import type { RoundId } from "../game/types";
 // rest positions below are measured from.
 export const MONSTER_Z = -0.85;
 
+// Where the room camera sits. Lives here because the stage geometry below is measured against it.
+export const CAMERA_SPAWN_Z = 0.35;
+
 // Where each monster actually comes to a stop after its walk-in. Spells have to aim at these
 // rather than at MONSTER_Z, which no monster stands on — see monsterImpactPoint.
 //
@@ -48,3 +51,13 @@ export const MONSTER_GROUND_Y: Record<RoundId, number> = {
   SHARD_WARDEN: 0.315,
   HEXWYRM: 0.245,
 };
+
+// A shield is judged on screen, so what has to stay constant between rooms is the angle it
+// subtends, not its world radius: the rooms are viewed from different distances, so one fixed
+// radius drew a 58 degree bubble around Shard Warden and a 77 degree one around Hexwyrm. Shard
+// Warden's 0.4 is the reference because that is the one that looked right.
+const SHIELD_RADIUS_PER_UNIT_DISTANCE = 0.4 / (CAMERA_SPAWN_Z - MONSTER_REST_Z.SHARD_WARDEN);
+
+export function monsterShieldRadius(round: RoundId): number {
+  return SHIELD_RADIUS_PER_UNIT_DISTANCE * (CAMERA_SPAWN_Z - MONSTER_REST_Z[round]);
+}

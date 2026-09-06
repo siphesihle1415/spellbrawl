@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RoundId } from "../game/types";
 import { EMBERMAW_ANIMATED_TRANSFORM, HEXWYRM_ANIMATED_TRANSFORM, SHARD_WARDEN_ANIMATED_TRANSFORM } from "../game/monsters";
-import { MONSTER_GROUND_Y, MONSTER_REST_Z, monsterImpactPoint } from "./monsterStage";
+import { CAMERA_SPAWN_Z, MONSTER_GROUND_Y, MONSTER_REST_Z, monsterImpactPoint, monsterShieldRadius } from "./monsterStage";
 
 // Body extents measured with a Box3 around each rendered rig in the running app, Float wobble
 // included: the mesh sits within ~0.15 of its room centre, spans y 0.66-1.05, and reaches ~0.09
@@ -43,6 +43,30 @@ describe("MONSTER_GROUND_Y", () => {
     it(`stands ${round} on its own room's floor`, () => {
       const feet = MONSTER_GROUND_Y[round] + GROUP_OFFSET_Y[round] - FEET_BELOW_ORIGIN[round];
       expect(feet).toBeCloseTo(FLOOR_Y[round], 2);
+    });
+  }
+});
+
+// Half-diagonal of each shielded monster's skeleton, measured in the running app. The bubble has
+// to stay comfortably outside this or it clips through the body it is meant to be protecting.
+const BODY_HALF_DIAGONAL: Record<"SHARD_WARDEN" | "HEXWYRM", number> = { SHARD_WARDEN: 0.162, HEXWYRM: 0.170 };
+const angularSize = (round: "SHARD_WARDEN" | "HEXWYRM") =>
+  2 * Math.atan(monsterShieldRadius(round) / (CAMERA_SPAWN_Z - MONSTER_REST_Z[round]));
+
+describe("monsterShieldRadius", () => {
+  it("draws both shields at the same size on screen", () => {
+    // A fixed world radius reads as a different bubble per room, because the rooms are not viewed
+    // from the same distance: 0.4 subtends 58 degrees around Shard Warden but 77 around Hexwyrm.
+    expect(angularSize("HEXWYRM")).toBeCloseTo(angularSize("SHARD_WARDEN"), 3);
+  });
+
+  it("keeps Shard Warden's bubble at the size that already looked right", () => {
+    expect(monsterShieldRadius("SHARD_WARDEN")).toBeCloseTo(0.4, 3);
+  });
+
+  for (const round of ["SHARD_WARDEN", "HEXWYRM"] as const) {
+    it(`clears ${round}'s body`, () => {
+      expect(monsterShieldRadius(round)).toBeGreaterThan(BODY_HALF_DIAGONAL[round] * 1.25);
     });
   }
 });
