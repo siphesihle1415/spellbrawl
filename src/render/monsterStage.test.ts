@@ -46,14 +46,3 @@ describe("MONSTER_GROUND_Y", () => {
     });
   }
 });
-
-describe("MONSTER_REST_Z", () => {
-  it("keeps every monster the same distance from the camera", () => {
-    // On-screen size falls off with distance, so a monster parked further back reads as a smaller
-    // creature even when the models are the same height in world space (all three measure ~0.35).
-    // Shard Warden used to rest 0.25 behind the other two and rendered 222px tall against their
-    // 320px — a third smaller, purely from perspective.
-    const restZ = Object.values(MONSTER_REST_Z);
-    expect(Math.max(...restZ) - Math.min(...restZ)).toBeLessThanOrEqual(0.05);
-  });
-});

@@ -11,12 +11,15 @@ export const MONSTER_Z = -0.85;
 // earlier 0.45 left it resting on that back rim among the rock props behind it, reading as
 // scenery rather than as the boss. Hexwyrm's room is open floor, where 0.7 already framed well.
 //
-// All three share the 0.7 so they hold the same distance from the camera and therefore read at
-// the same size: the models are within 1.5% of each other in world height, so any gap here shows
-// up purely as one monster looking smaller than the rest.
+// Distance from the camera also sets apparent size — the models are within 1.5% of each other in
+// world height, so a monster parked further back simply looks like a smaller creature. Embermaw
+// and Hexwyrm share 0.7 and read at about the same size. Shard Warden deliberately does not: its
+// room's dais is centred at z = -0.375 rather than under the 0.7 mark, and standing it on the
+// front lip to match the others' size looked worse from both player cameras than standing it in
+// the middle of the platform does. Composition won; it renders about a third smaller.
 export const MONSTER_REST_Z: Record<RoundId, number> = {
   EMBERMAW: MONSTER_Z + 0.7,
-  SHARD_WARDEN: MONSTER_Z + 0.7,
+  SHARD_WARDEN: MONSTER_Z + 0.475,
   HEXWYRM: MONSTER_Z + 0.7,
 };
 
