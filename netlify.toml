@@ -5,6 +5,11 @@
 [build.environment]
   NODE_VERSION = "22"
 
+[context.deploy-preview.environment]
+  # These public provider settings are stored as secrets by the existing env
+  # sync, but also appear as defaults in source. Continue scanning API keys.
+  SECRETS_SCAN_OMIT_KEYS = "LLM_DIRECTOR_PROVIDER,LLM_DIRECTOR_TIMEOUT_MS,ANTHROPIC_BASE_URL,ANTHROPIC_DIRECTOR_MODEL"
+
 [dev]
   framework = "#custom"
   command = "vite"
