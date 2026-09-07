@@ -4,18 +4,50 @@ on:
   push:
     branches:
       - "release/**"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      configure_preview:
+        description: Configure Anthropic for Deploy Previews only (no production deployment)
+        type: boolean
+        default: false
 
 # Only one release may replace the production site at a time.
 concurrency:
-  group: netlify-production
+  group: netlify-${{ inputs.configure_preview && 'preview-configuration' || 'production' }}
   cancel-in-progress: false
 
 permissions:
   contents: read
 
 jobs:
+  configure-preview:
+    if: github.event_name == 'workflow_dispatch' && inputs.configure_preview
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Configure Anthropic with the Netlify CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$ANTHROPIC_API_KEY" || { echo "ANTHROPIC_API_KEY repository secret is required"; exit 1; }
+          test -n "$NETLIFY_AUTH_TOKEN" || { echo "NETLIFY_AUTH_TOKEN repository secret is required"; exit 1; }
+          for variable in LLM_DIRECTOR_PROVIDER LLM_DIRECTOR_TIMEOUT_MS ANTHROPIC_API_KEY ANTHROPIC_BASE_URL ANTHROPIC_DIRECTOR_MODEL; do
+            npx --yes netlify-cli@27.1.1 env:set "$variable" "${!variable}" --context deploy-preview --secret --force --site="$NETLIFY_SITE_ID" > /dev/null
+            echo "Configured $variable for Deploy Previews"
+          done
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: 9ab4d9d6-d19a-4b86-a631-4ba83c8a6b0a
+          LLM_DIRECTOR_PROVIDER: anthropic
+          LLM_DIRECTOR_TIMEOUT_MS: ${{ secrets.LLM_DIRECTOR_TIMEOUT_MS || '15000' }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL || 'https://api.anthropic.com' }}
+          ANTHROPIC_DIRECTOR_MODEL: ${{ secrets.ANTHROPIC_DIRECTOR_MODEL || 'claude-haiku-4-5-20251001' }}
+
   deploy:
+    if: ${{ !inputs.configure_preview }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
