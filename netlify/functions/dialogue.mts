@@ -1,3 +1,4 @@
+import { withFunctionLogging } from "../../src/director/diagnostics";
 import type { Config, Context } from "@netlify/functions";
 import { generateProviderDialogue, type DialogueMonster } from "../../src/director/providers";
 import { loadDirectorRuntimeConfig } from "../../src/director/serverConfig";
@@ -19,7 +20,7 @@ function json(lines: string[] | null, source: "ai" | "static" | "fallback") {
   return Response.json({ lines, source }, { headers: { "cache-control": "no-store" } });
 }
 
-export default async (request: Request, _context: Context) => {
+export default withFunctionLogging("dialogue", async (request: Request, _context: Context) => {
   if (request.method !== "POST") {
     return Response.json({ error: "Method not allowed" }, { status: 405, headers: { allow: "POST" } });
   }
@@ -30,13 +31,12 @@ export default async (request: Request, _context: Context) => {
   }
 
   const runtimeConfig = loadDirectorRuntimeConfig(process.env);
-  if (runtimeConfig.provider === "static") return json(null, "static");
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), runtimeConfig.timeoutMs);
   const lines = await generateProviderDialogue(runtimeConfig, body.round, body.monster, controller.signal);
   clearTimeout(timeout);
-  return lines ? json(lines, "ai") : json(null, "fallback");
-};
+  return lines ? json(lines, "ai") : json(null, runtimeConfig.provider === "static" ? "static" : "fallback");
+});
 
 export const config: Config = { method: "POST" };

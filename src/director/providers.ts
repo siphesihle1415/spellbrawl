@@ -1,3 +1,4 @@
+import { logEvent } from "./diagnostics";
 import type { DirectorRuntimeConfig } from "./serverConfig";
 import { fallbackLoaderFacts } from "./loaderFacts";
 import {
@@ -130,13 +131,31 @@ function decodeDialogueLines(text: string | null): string[] | null {
   }
 }
 
+class ProviderFailure extends Error {
+  constructor(readonly reason: string, readonly status?: number) {
+    super(reason);
+  }
+}
+
 async function post(url: string, body: unknown, signal: AbortSignal, headers: HeadersInit = {}) {
-  return fetch(url, {
+  const response = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json", ...headers },
     body: JSON.stringify(body),
     signal,
   });
+  logEvent("llm.response", {
+    status: response.status,
+    providerRequestId: response.headers.get("request-id") ?? response.headers.get("x-request-id") ?? undefined,
+  }, response.ok ? "info" : "warn");
+  if (!response.ok) throw new ProviderFailure("http_error", response.status);
+  return response;
+}
+
+// GPT-OSS requires a reasoning level, not think:false. Other Ollama models
+// retain their defaults; not all models support the same thinking options.
+function ollamaThinking(model: string | undefined) {
+  return model?.startsWith("gpt-oss:") || model === "gpt-oss" ? { think: "low" } : {};
 }
 
 async function generateWithOllama(config: DirectorRuntimeConfig, signal: AbortSignal) {
@@ -149,12 +168,12 @@ async function generateWithOllama(config: DirectorRuntimeConfig, signal: AbortSi
         { role: "user", content: userPrompt },
       ],
       stream: false,
+      ...ollamaThinking(config.model),
       options: { temperature: 0 },
     },
     signal,
     { authorization: `Bearer ${config.apiKey}` },
   );
-  if (!response.ok) return null;
   const payload = await response.json() as { message?: { content?: string } };
   return decodeText(payload.message?.content ?? null);
 }
@@ -175,7 +194,6 @@ async function generateWithAnthropic(config: DirectorRuntimeConfig, signal: Abor
       "anthropic-version": "2023-06-01",
     },
   );
-  if (!response.ok) return null;
   const payload = await response.json() as { content?: Array<{ type?: string; text?: string }> };
   return decodeText(payload.content?.find((item) => item.type === "text")?.text ?? null);
 }
@@ -200,7 +218,6 @@ async function generateWithOpenAI(config: DirectorRuntimeConfig, signal: AbortSi
     signal,
     { authorization: `Bearer ${config.apiKey}` },
   );
-  if (!response.ok) return null;
   const payload = await response.json() as {
     output_text?: string;
     output?: Array<{ type?: string; content?: Array<{ type?: string; text?: string }> }>;
@@ -211,69 +228,59 @@ async function generateWithOpenAI(config: DirectorRuntimeConfig, signal: AbortSi
   return decodeText(outputText ?? null);
 }
 
-export async function generateProviderConfiguration(
+async function generateConfiguration(
   config: DirectorRuntimeConfig,
   signal: AbortSignal,
 ): Promise<RunConfiguration | null> {
   if (config.provider === "static") return config.staticConfiguration;
   if (!config.apiKey || !config.model) return null;
 
-  try {
-    if (config.provider === "ollama") return await generateWithOllama(config, signal);
-    if (config.provider === "anthropic") return await generateWithAnthropic(config, signal);
-    return await generateWithOpenAI(config, signal);
-  } catch {
-    return null;
-  }
+  if (config.provider === "ollama") return await generateWithOllama(config, signal);
+  if (config.provider === "anthropic") return await generateWithAnthropic(config, signal);
+  return await generateWithOpenAI(config, signal);
 }
 
-export async function generateProviderFacts(
+async function generateFacts(
   config: DirectorRuntimeConfig,
   signal: AbortSignal,
 ): Promise<string[] | null> {
   if (config.provider === "static") return [...fallbackLoaderFacts];
   if (!config.apiKey || !config.model) return null;
 
-  try {
-    if (config.provider === "ollama") {
-      const response = await post(`${config.baseUrl}/api/chat`, {
-        model: config.model,
-        messages: [{ role: "system", content: factsSystemPrompt }, { role: "user", content: factsUserPrompt }],
-        stream: false,
-      }, signal, { authorization: `Bearer ${config.apiKey}` });
-      if (!response.ok) return null;
-      const payload = await response.json() as { message?: { content?: string } };
-      return decodeFacts(payload.message?.content ?? null);
-    }
-    if (config.provider === "anthropic") {
-      const response = await post(`${config.baseUrl}/v1/messages`, {
-        model: config.model,
-        max_tokens: 500,
-        temperature: 0.8,
-        system: factsSystemPrompt,
-        messages: [{ role: "user", content: factsUserPrompt }],
-      }, signal, { "x-api-key": config.apiKey!, "anthropic-version": "2023-06-01" });
-      if (!response.ok) return null;
-      const payload = await response.json() as { content?: Array<{ type?: string; text?: string }> };
-      return decodeFacts(payload.content?.find((item) => item.type === "text")?.text ?? null);
-    }
-    const response = await post(`${config.baseUrl}/responses`, {
+  if (config.provider === "ollama") {
+    const response = await post(`${config.baseUrl}/api/chat`, {
       model: config.model,
-      instructions: factsSystemPrompt,
-      input: factsUserPrompt,
-      text: { format: { type: "json_schema", name: "spellbrawl_loader_facts", strict: true, schema: factsOutputSchema } },
-      max_output_tokens: 500,
+      messages: [{ role: "system", content: factsSystemPrompt }, { role: "user", content: factsUserPrompt }],
+      stream: false,
+      ...ollamaThinking(config.model),
     }, signal, { authorization: `Bearer ${config.apiKey}` });
-    if (!response.ok) return null;
-    const payload = await response.json() as { output_text?: string; output?: Array<{ type?: string; content?: Array<{ type?: string; text?: string }> }> };
-    const outputText = payload.output_text ?? payload.output?.find((item) => item.type === "message")?.content?.find((item) => item.type === "output_text" || item.type === "text")?.text;
-    return decodeFacts(outputText ?? null);
-  } catch {
-    return null;
+    const payload = await response.json() as { message?: { content?: string } };
+    return decodeFacts(payload.message?.content ?? null);
   }
+  if (config.provider === "anthropic") {
+    const response = await post(`${config.baseUrl}/v1/messages`, {
+      model: config.model,
+      max_tokens: 500,
+      temperature: 0.8,
+      system: factsSystemPrompt,
+      messages: [{ role: "user", content: factsUserPrompt }],
+    }, signal, { "x-api-key": config.apiKey!, "anthropic-version": "2023-06-01" });
+    const payload = await response.json() as { content?: Array<{ type?: string; text?: string }> };
+    return decodeFacts(payload.content?.find((item) => item.type === "text")?.text ?? null);
+  }
+  const response = await post(`${config.baseUrl}/responses`, {
+    model: config.model,
+    instructions: factsSystemPrompt,
+    input: factsUserPrompt,
+    text: { format: { type: "json_schema", name: "spellbrawl_loader_facts", strict: true, schema: factsOutputSchema } },
+    max_output_tokens: 500,
+  }, signal, { authorization: `Bearer ${config.apiKey}` });
+  const payload = await response.json() as { output_text?: string; output?: Array<{ type?: string; content?: Array<{ type?: string; text?: string }> }> };
+  const outputText = payload.output_text ?? payload.output?.find((item) => item.type === "message")?.content?.find((item) => item.type === "output_text" || item.type === "text")?.text;
+  return decodeFacts(outputText ?? null);
 }
 
-export async function generateProviderDialogue(
+async function generateDialogue(
   config: DirectorRuntimeConfig,
   round: RoundId,
   monster: DialogueMonster,
@@ -284,43 +291,84 @@ export async function generateProviderDialogue(
 
   const userPrompt = dialogueUserPrompt(round, monster);
 
-  try {
-    if (config.provider === "ollama") {
-      const response = await post(`${config.baseUrl}/api/chat`, {
-        model: config.model,
-        messages: [{ role: "system", content: dialogueSystemPrompt }, { role: "user", content: userPrompt }],
-        stream: false,
-      }, signal, { authorization: `Bearer ${config.apiKey}` });
-      if (!response.ok) return null;
-      const payload = await response.json() as { message?: { content?: string } };
-      return decodeDialogueLines(payload.message?.content ?? null);
-    }
-    if (config.provider === "anthropic") {
-      const response = await post(`${config.baseUrl}/v1/messages`, {
-        model: config.model,
-        max_tokens: 400,
-        temperature: 0.8,
-        system: dialogueSystemPrompt,
-        messages: [{ role: "user", content: userPrompt }],
-      }, signal, { "x-api-key": config.apiKey!, "anthropic-version": "2023-06-01" });
-      if (!response.ok) return null;
-      const payload = await response.json() as { content?: Array<{ type?: string; text?: string }> };
-      return decodeDialogueLines(payload.content?.find((item) => item.type === "text")?.text ?? null);
-    }
-    const response = await post(`${config.baseUrl}/responses`, {
+  if (config.provider === "ollama") {
+    const response = await post(`${config.baseUrl}/api/chat`, {
       model: config.model,
-      instructions: dialogueSystemPrompt,
-      input: userPrompt,
-      text: { format: { type: "json_schema", name: "spellbrawl_dialogue", strict: true, schema: dialogueOutputSchema } },
-      max_output_tokens: 400,
+      messages: [{ role: "system", content: dialogueSystemPrompt }, { role: "user", content: userPrompt }],
+      stream: false,
+      ...ollamaThinking(config.model),
     }, signal, { authorization: `Bearer ${config.apiKey}` });
-    if (!response.ok) return null;
-    const payload = await response.json() as { output_text?: string; output?: Array<{ type?: string; content?: Array<{ type?: string; text?: string }> }> };
-    const outputText = payload.output_text ?? payload.output?.find((item) => item.type === "message")?.content?.find((item) => item.type === "output_text" || item.type === "text")?.text;
-    return decodeDialogueLines(outputText ?? null);
-  } catch {
+    const payload = await response.json() as { message?: { content?: string } };
+    return decodeDialogueLines(payload.message?.content ?? null);
+  }
+  if (config.provider === "anthropic") {
+    const response = await post(`${config.baseUrl}/v1/messages`, {
+      model: config.model,
+      max_tokens: 400,
+      temperature: 0.8,
+      system: dialogueSystemPrompt,
+      messages: [{ role: "user", content: userPrompt }],
+    }, signal, { "x-api-key": config.apiKey!, "anthropic-version": "2023-06-01" });
+    const payload = await response.json() as { content?: Array<{ type?: string; text?: string }> };
+    return decodeDialogueLines(payload.content?.find((item) => item.type === "text")?.text ?? null);
+  }
+  const response = await post(`${config.baseUrl}/responses`, {
+    model: config.model,
+    instructions: dialogueSystemPrompt,
+    input: userPrompt,
+    text: { format: { type: "json_schema", name: "spellbrawl_dialogue", strict: true, schema: dialogueOutputSchema } },
+    max_output_tokens: 400,
+  }, signal, { authorization: `Bearer ${config.apiKey}` });
+  const payload = await response.json() as { output_text?: string; output?: Array<{ type?: string; content?: Array<{ type?: string; text?: string }> }> };
+  const outputText = payload.output_text ?? payload.output?.find((item) => item.type === "message")?.content?.find((item) => item.type === "output_text" || item.type === "text")?.text;
+  return decodeDialogueLines(outputText ?? null);
+}
+
+export { directorOutputSchema };
+
+async function observeGeneration<T>(
+  operation: string,
+  config: DirectorRuntimeConfig,
+  signal: AbortSignal,
+  generate: () => Promise<T | null>,
+): Promise<T | null> {
+  const metadata = { operation, provider: config.provider, model: config.model, timeoutMs: config.timeoutMs };
+  if (config.provider === "static") {
+    logEvent("llm.skipped", { ...metadata, reason: "static_provider" });
+    return generate();
+  }
+  if (!config.apiKey || !config.model) {
+    logEvent("llm.skipped", { ...metadata, reason: !config.apiKey ? "missing_api_key" : "missing_model" }, "warn");
+    return null;
+  }
+  const started = Date.now();
+  logEvent("llm.start", { ...metadata, ...ollamaThinking(config.provider === "ollama" ? config.model : undefined) });
+  try {
+    const result = await generate();
+    logEvent(result === null ? "llm.fallback" : "llm.complete", {
+      ...metadata, durationMs: Date.now() - started,
+      reason: result === null ? "invalid_output" : undefined,
+    }, result === null ? "warn" : "info");
+    return result;
+  } catch (error) {
+    logEvent("llm.fallback", {
+      ...metadata, durationMs: Date.now() - started,
+      reason: signal.aborted ? "timeout" : error instanceof ProviderFailure ? error.reason
+        : error instanceof SyntaxError ? "invalid_json" : "network_error",
+      status: error instanceof ProviderFailure ? error.status : undefined,
+    }, "warn");
     return null;
   }
 }
 
-export { directorOutputSchema };
+export function generateProviderConfiguration(config: DirectorRuntimeConfig, signal: AbortSignal) {
+  return observeGeneration("configuration", config, signal, () => generateConfiguration(config, signal));
+}
+
+export function generateProviderFacts(config: DirectorRuntimeConfig, signal: AbortSignal) {
+  return observeGeneration("facts", config, signal, () => generateFacts(config, signal));
+}
+
+export function generateProviderDialogue(config: DirectorRuntimeConfig, round: RoundId, monster: DialogueMonster, signal: AbortSignal) {
+  return observeGeneration("dialogue", config, signal, () => generateDialogue(config, round, monster, signal));
+}
