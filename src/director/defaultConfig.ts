@@ -43,6 +43,7 @@ export function encounterForRound(configuration: RunConfiguration, round: RoundI
 export function directMessage(configuration: RunConfiguration, message: string): string {
   return message
     .replaceAll("Embermaw", configuration.embermaw.name)
+    .replaceAll("Shard Warden", configuration.shardWarden.name)
     .replaceAll("the Warden", configuration.shardWarden.name)
     .replaceAll("The Warden", configuration.shardWarden.name)
     .replaceAll("The Hexwyrm", configuration.hexwyrm.name)
