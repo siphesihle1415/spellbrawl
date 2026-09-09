@@ -169,7 +169,7 @@ async function generateWithOllama(config: DirectorRuntimeConfig, signal: AbortSi
       ],
       stream: false,
       ...ollamaThinking(config.model),
-      options: { temperature: 0 },
+      options: { temperature: 0.8 },
     },
     signal,
     { authorization: `Bearer ${config.apiKey}` },
@@ -184,7 +184,7 @@ async function generateWithAnthropic(config: DirectorRuntimeConfig, signal: Abor
     {
       model: config.model,
       max_tokens: 700,
-      temperature: 0,
+      temperature: 0.8,
       system: systemPrompt,
       messages: [{ role: "user", content: userPrompt }],
     },
