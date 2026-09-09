@@ -109,6 +109,8 @@ test("two players see the combat HUD, synced gestures, and shared session exit",
   await expect(host.getByText("1 / 2 HP", { exact: false })).toBeVisible();
   await expectAudioFile(host, "/audio/fireball.mp3");
   await expectAudioFile(guest, "/audio/fireball.mp3");
+  await expectAudioFile(host, "/audio/nextlevel.mp3");
+  await expectAudioFile(guest, "/audio/nextlevel.mp3");
   const guestShieldMove = guest.locator(".compact-spell").filter({ hasText: "Arcane Shield" });
   await host.keyboard.press("2");
   await expect(guestShieldMove).toHaveClass(/is-active/);
@@ -167,7 +169,21 @@ test("official spell playground exposes move help, one tracker, and every spell"
   await expectAudioTone(page, 90);
   await expectAudioTone(page, 320);
   await expectAudioTone(page, 180);
+  const playedFiles = await page.evaluate(() =>
+    (window as typeof window & { observedAudio: { files: string[] } }).observedAudio.files,
+  );
+  expect(playedFiles).not.toContain("/audio/nextlevel.mp3");
 
   await page.getByRole("button", { name: "Exit playground" }).click();
   await expect(page.getByRole("heading", { name: "Enter the arena" })).toBeVisible();
+});
+
+test("unavailable room server shows a player-friendly connection error", async ({ page }) => {
+  // Accept the socket without assigning a role to exercise the real connection timeout.
+  await page.routeWebSocket("**/*", () => {});
+  await page.goto("/?lite=1");
+  await page.getByRole("button", { name: "Create room" }).click();
+  await expect(page.getByText("Could not connect to the game server. Check your internet connection and try again.")).toBeVisible();
+  await expect(page.getByText("npm run dev", { exact: false })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Create room" })).toBeEnabled();
 });
