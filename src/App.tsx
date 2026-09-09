@@ -475,7 +475,7 @@ export function App() {
             {state.status === "DIALOGUE" && (!enemyAssetsReady || assetError) && <RoundLoader label={`Summoning ${encounter.name}…`} loadedAssets={loadedEnemyAssetCount} totalAssets={enemyRoundAssets.length} errorMessage={assetError} onRetry={retryAssetLoading} />}
             {state.status === "DIALOGUE" && enemyAssetsReady && !assetError && !bothPlayersReady && <RoundLoader label="Waiting for the other spellcaster…" />}
             {state.status === "DIALOGUE" && bothPlayersReady && <EncounterDialogue lines={encounterDialogue(state, configuration, dialogueLinesByRound[state.round])} step={state.dialogueStep} />}
-            {state.status === "MONSTER_DEFEATED" && <div className="final-words"><small>Final words</small><p>{state.message}</p></div>}
+            {state.status === "MONSTER_DEFEATED" && <div className="final-words"><small>Final words</small><p>{directMessage(configuration, state.message)}</p></div>}
             {state.status === "ROUND_COMPLETE" && <RoundComplete state={state} playerId={myPlayerId} monsterName={encounter.name} onContinue={chooseContinue} onExit={exitSession} />}
 
             {(display.status === "LOBBY" || display.status === "VICTORY" || display.status === "DEFEAT") && (
