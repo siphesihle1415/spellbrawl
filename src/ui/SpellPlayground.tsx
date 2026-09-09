@@ -128,7 +128,7 @@ export function SpellPlayground({ state, now, dispatch, onExit, testMode }: { st
     <div className="spell-playground-ui">
       <div className="playground-heading">
         <div><small>Official practice arena · All spells</small><h2>Spell Playground</h2><p>Select a spell, open the move help when needed, then perform its gestures with your tracked hand.</p></div>
-        <button type="button" onClick={onExit}>Exit playground</button>
+        <button type="button" onClick={onExit} aria-label="Exit playground">Exit<span className="playground-exit-label"> playground</span></button>
       </div>
 
       <div className="playground-spell-picker" aria-label="Choose a spell to test">

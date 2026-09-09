@@ -474,7 +474,7 @@ export function App() {
             {state.status === "ROUND_COMPLETE" && <RoundComplete state={state} playerId={myPlayerId} monsterName={encounter.name} onContinue={chooseContinue} onExit={exitSession} />}
 
             {(display.status === "LOBBY" || display.status === "VICTORY" || display.status === "DEFEAT") && (
-              <div className="absolute inset-0 z-[15] grid place-content-center bg-[radial-gradient(circle,#160f27aa,#08060fef_70%)] text-center">
+              <div className="room-gate absolute inset-0 z-[15] grid place-content-center bg-[radial-gradient(circle,#160f27aa,#08060fef_70%)] text-center">
                 <p className="m-0 text-[0.7rem] tracking-[0.15em] text-[#b7a6d1] uppercase">{display.status === "VICTORY" ? "The rift is sealed" : display.status === "DEFEAT" ? "The link has broken" : "Two hands. One spell."}</p>
                 <h2 className="font-display mt-2 mb-[22px] text-[clamp(2.4rem,7vw,5rem)]">{display.status === "VICTORY" ? "Victory" : display.status === "DEFEAT" ? "Defeat" : "Enter the arena"}</h2>
                 {state.status === "LOBBY" && <p className="mb-4 text-xs tracking-[0.12em] text-[#b7a6d1] uppercase" aria-live="polite">Cameras ready · {readyCameraCount} / 2</p>}

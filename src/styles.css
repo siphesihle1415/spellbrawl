@@ -6,6 +6,23 @@
   --font-display: "Cinzel", Georgia, serif;
 }
 
+/* Keep overlays inside the usable viewport, including landscape display cutouts. */
+:root {
+  --edge-top: max(8px, env(safe-area-inset-top));
+  --edge-right: max(8px, env(safe-area-inset-right));
+  --edge-bottom: max(8px, env(safe-area-inset-bottom));
+  --edge-left: max(8px, env(safe-area-inset-left));
+}
+.startup-loader, .round-loader {
+  overflow: auto;
+  overflow-x: hidden;
+  padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  align-items: safe center;
+}
+.startup-loader > div:first-child { pointer-events: none; }
+.round-loader { z-index: 45; }
+.room-gate { overflow: auto; padding: 64px 16px 20px; align-content: safe center; }
+
 @layer base {
   :root {
     color: #f4efff;
@@ -429,4 +446,73 @@
   .playground-camera .hand-card { width: min(210px, calc(50vw - 12px)); }
   .encounter-dialogue, .round-complete { padding: 16px; }
   .combat-message { bottom: 122px; width: calc(100% - 16px); padding: 8px; font-size: .64rem; }
+}
+
+/* Short viewports need a different composition, not a scaled desktop HUD. */
+@media (orientation: landscape) and (max-height: 600px), (min-width: 761px) and (max-width: 1180px) {
+  :root { --side-width: clamp(140px, 23vw, 210px); }
+  .game-header { top: var(--edge-top); left: var(--edge-left); right: var(--edge-right); max-width: none; gap: 6px; }
+  .game-header h1 { padding: 7px 9px; font-size: 1rem; }
+  .room-chip { padding: 7px; font-size: .55rem; }
+  .room-chip > span:last-child { display: none; }
+  .exit-session { margin-left: auto; min-height: 36px; padding: 6px 10px; }
+  .enemy-hud { top: calc(var(--edge-top) + 42px); width: calc(100% - 2 * var(--side-width) - var(--edge-left) - var(--edge-right) - 24px); }
+  .enemy-hud small { font-size: .55rem; }
+  .enemy-hud h2 { margin: 1px 0; font-size: clamp(.85rem, 2.4vw, 1.25rem); }
+  .enemy-hud p { margin: 3px 0; font-size: .55rem; }
+  .team-status { top: calc(var(--edge-top) + 44px); left: var(--edge-left); width: var(--side-width); gap: 4px; }
+  .team-status > div { padding: 5px 8px; font-size: .55rem; }
+  .move-menu, .spell-playground-ui .move-menu { top: calc(var(--edge-top) + 44px); right: var(--edge-right); bottom: auto; width: var(--side-width); max-height: calc(100dvh - var(--edge-top) - var(--edge-bottom) - 190px); display: flex; flex-direction: column; clip-path: none; border-radius: 8px; }
+  .compact-menu-heading { flex-shrink: 0; }
+  .compact-menu-heading button { min-height: 36px; min-width: 44px; font-size: .65rem; }
+  .compact-moves, .spell-playground-ui .compact-moves { display: grid; min-height: 0; overflow: auto; }
+  .compact-spell { grid-template-columns: 18px minmax(0, 1fr) 30px; min-height: 34px; gap: 3px; padding: 4px; }
+  .compact-copy strong { font-size: .55rem; }
+  .compact-copy small, .compact-recipe { display: none; }
+  .compact-status { width: auto; font-size: .4rem; }
+  .player-cameras { left: var(--edge-left); right: var(--edge-right); bottom: var(--edge-bottom); gap: 8px; }
+  .hand-card, .playground-camera .hand-card { width: var(--side-width); padding: 4px; }
+  .hand-viewport { aspect-ratio: auto; height: clamp(56px, 18dvh, 100px); }
+  .hand-card-meta { margin-top: 3px; gap: 3px; }
+  .hand-card-meta span { font-size: .55rem; }
+  .hand-card-meta small { font-size: .5rem; }
+  .hand-card > p { display: none; }
+  .camera-button { white-space: normal; width: calc(100% - 8px); min-height: 40px; padding: 4px; }
+  .player-rune { top: 3px; left: 3px; width: 18px; height: 18px; }
+  .tracking-paused .gesture-glyph, .remote-gesture .gesture-glyph { font-size: 1.3rem; }
+  .tracking-paused span { display: none; }
+  .combat-message, .spell-playground-ui .combat-message { bottom: var(--edge-bottom); width: calc(100% - 2 * var(--side-width) - var(--edge-left) - var(--edge-right) - 24px); max-height: 22dvh; overflow: auto; padding: 6px 8px; font-size: .65rem; }
+  .spell-playground-ui { padding: 0; }
+  .playground-heading { position: absolute; top: calc(var(--edge-top) + 44px); left: var(--edge-left); width: var(--side-width); max-width: none; padding: 6px; gap: 4px; }
+  .playground-heading small, .playground-heading p { display: none; }
+  .playground-heading > div { min-width: 0; }
+  .playground-heading h2 { font-size: .6rem; }
+  .playground-exit-label { display: none; }
+  .playground-heading button { width: 40px; flex-shrink: 0; white-space: normal; min-height: 36px; padding: 4px 6px; }
+  .playground-spell-picker { position: absolute; top: calc(var(--edge-top) + 100px); left: var(--edge-left); width: var(--side-width); max-height: calc(100dvh - var(--edge-top) - var(--edge-bottom) - 230px); overflow: auto; margin: 0; padding: 5px; }
+  .playground-spell-picker > button { min-height: 36px; padding: 5px 8px; font-size: .6rem; }
+  .playground-camera { left: var(--edge-left); bottom: var(--edge-bottom); }
+  .encounter-dialogue, .round-complete, .final-words { top: calc(var(--edge-top) + 48px); bottom: auto; max-height: calc(100dvh - var(--edge-top) - var(--edge-bottom) - 60px); overflow: auto; transform: translateX(50%); padding: 12px 16px; width: min(620px, calc(100% - 2 * var(--side-width) - 32px)); }
+  .final-words { transform: translateX(-50%); }
+  .encounter-dialogue h2, .round-complete h2 { font-size: 1.1rem; }
+  .encounter-dialogue p { min-height: 0; font-size: .8rem; line-height: 1.4; }
+  .encounter-dialogue > div { flex-wrap: wrap; margin-top: 8px; }
+  .round-actions, .progression-votes { flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+  .room-gate { padding: calc(var(--edge-top) + 48px) calc(var(--side-width) + 16px) calc(var(--edge-bottom) + 12px); }
+  .room-gate h2 { font-size: 1.6rem; margin: 4px 0 10px; }
+  .room-gate > div { gap: 6px; }
+  .room-gate button { padding-top: 7px; padding-bottom: 7px; }
+  .help-spell-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .spell-help-heading { position: sticky; top: -8px; z-index: 2; background: #03070b; }
+  .spell-help-heading button { min-height: 40px; }
+}
+
+@media (max-height: 600px) {
+  .startup-content { max-width: 760px; }
+  .startup-content h2 { font-size: clamp(1.5rem, 6dvh, 2.5rem); }
+  .startup-content > p { margin-top: 8px; margin-bottom: 8px; }
+  .startup-content > div { margin-top: 12px; }
+  .startup-content article { margin-top: 16px; padding: 12px 16px; }
+  .startup-content article p:last-child { min-height: 0; margin-top: 6px; font-size: .8rem; line-height: 1.5; }
+  .round-fact { margin-top: 14px; }
 }

@@ -28,7 +28,7 @@ export function RoomGate({
 
   if (connection.status === "WAITING_FOR_PEER" || connection.status === "CONNECTED") {
     return (
-      <div className="absolute inset-0 z-[15] grid place-content-center bg-[radial-gradient(circle,#160f27aa,#08060fef_70%)] text-center">
+      <div className="room-gate absolute inset-0 z-[15] grid place-content-center bg-[radial-gradient(circle,#160f27aa,#08060fef_70%)] text-center">
         <p className="m-0 text-[0.7rem] tracking-[0.15em] text-[#b7a6d1] uppercase">Room code</p>
         <h2 className="font-display mt-2 mb-[10px] text-[clamp(2.4rem,7vw,5rem)]">{connection.code}</h2>
         <p className="m-0 text-sm text-[#ded4ef]">
@@ -44,7 +44,7 @@ export function RoomGate({
 
   if (connection.status === "PEER_LEFT") {
     return (
-      <div className="absolute inset-0 z-[15] grid place-content-center bg-[radial-gradient(circle,#160f27aa,#08060fef_70%)] text-center">
+      <div className="room-gate absolute inset-0 z-[15] grid place-content-center bg-[radial-gradient(circle,#160f27aa,#08060fef_70%)] text-center">
         <p className="m-0 text-[0.7rem] tracking-[0.15em] text-[#ff9a9a] uppercase">Connection lost</p>
         <h2 className="font-display mt-2 mb-[22px] text-[clamp(2rem,6vw,3.5rem)]">The other caster left</h2>
         <button
@@ -59,7 +59,7 @@ export function RoomGate({
   }
 
   return (
-    <div className="absolute inset-0 z-[15] grid place-content-center bg-[radial-gradient(circle,#160f27aa,#08060fef_70%)] text-center">
+    <div className="room-gate absolute inset-0 z-[15] grid place-content-center bg-[radial-gradient(circle,#160f27aa,#08060fef_70%)] text-center">
       <p className="m-0 text-[0.7rem] tracking-[0.15em] text-[#b7a6d1] uppercase">Two hands. One spell.</p>
       <h2 className="font-display mt-2 mb-[22px] text-[clamp(2.4rem,7vw,5rem)]">Enter the arena</h2>
       <div className="flex flex-col items-center gap-3">
