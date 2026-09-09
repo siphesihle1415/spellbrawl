@@ -60,7 +60,7 @@ export function App() {
   const hasHostRole = (connection.status === "WAITING_FOR_PEER" || connection.status === "CONNECTED") && connection.isHost;
   const { configuration, status: directorStatus, applyRemoteConfiguration } = useRunConfiguration(hasHostRole);
   const audioState = isSpellPlayground ? playgroundState : state;
-  useGameAudio(audioState.effect?.id, audioState.effect?.kind, audioState.status);
+  useGameAudio(audioState.effect?.id, audioState.effect?.kind, audioState.status, !isSpellPlayground);
 
   const encounter = encounterForRound(configuration, state.round);
   const displayEncounter = encounterForRound(configuration, display.round);
@@ -116,9 +116,7 @@ export function App() {
       setConnectError(
         error instanceof Error && error.message.startsWith("Room full")
           ? error.message
-          : error instanceof Error && error.message.includes("Timed out")
-          ? "Room server unavailable. For local testing, start the app with npm run dev."
-          : "Could not reach the room. Check the code and try again.",
+          : "Could not connect to the game server. Check your internet connection and try again.",
       );
       setConnection({ status: "IDLE" });
     }

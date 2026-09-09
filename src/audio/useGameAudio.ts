@@ -84,7 +84,7 @@ export function preloadAudioAssets(urls: readonly string[], onLoaded: (url: stri
   });
 }
 
-export function useGameAudio(effectId: number | undefined, effectKind: CombatEffectKind | undefined, status: GameStatus) {
+export function useGameAudio(effectId: number | undefined, effectKind: CombatEffectKind | undefined, status: GameStatus, playLevelSounds = true) {
   const previousStatus = useRef(status);
 
   useEffect(() => {
@@ -125,16 +125,17 @@ export function useGameAudio(effectId: number | undefined, effectKind: CombatEff
 
   useEffect(() => {
     if (!effectId || !effectKind) return;
+    if (effectKind === "ENEMY_EMERGE" && !playLevelSounds) return;
     const file = soundForEffect[effectKind];
     if (file) playFile(file);
     else synthesize(effectKind);
-  }, [effectId, effectKind]);
+  }, [effectId, effectKind, playLevelSounds]);
 
   useEffect(() => {
     if (previousStatus.current !== status) {
-      if (status === "ROUND_COMPLETE") playFile("/audio/nextlevel.mp3", 0.65);
+      if (status === "ROUND_COMPLETE" && playLevelSounds) playFile("/audio/nextlevel.mp3", 0.65);
       if (status === "DEFEAT") playFile("/audio/gameover.mp3", 0.75);
       previousStatus.current = status;
     }
-  }, [status]);
+  }, [status, playLevelSounds]);
 }
