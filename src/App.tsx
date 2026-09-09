@@ -21,6 +21,7 @@ import { RoomGate } from "./ui/RoomGate";
 import { SpellPlayground } from "./ui/SpellPlayground";
 import { RoundLoader } from "./ui/RoundLoader";
 import { RoundComplete } from "./ui/RoundComplete";
+import { RotatePrompt } from "./ui/RotatePrompt";
 import { StartupLoader } from "./ui/StartupLoader";
 
 const keyGestures: Record<string, Gesture> = {
@@ -41,6 +42,8 @@ export function App() {
   const [isSpellPlayground, setIsSpellPlayground] = useState(false);
   const [playgroundState, dispatchPlayground] = useReducer(gameReducer, undefined, () => gameReducer(initialGameState(), { type: "START" }));
   const [loadedAssets, setLoadedAssets] = useState<Set<string>>(() => new Set());
+  const [startupComplete, setStartupComplete] = useState(lightweightTestMode);
+  const finishStartup = useCallback(() => setStartupComplete(true), []);
   const [assetError, setAssetError] = useState("");
   const [now, setNow] = useState(0);
   const [cameraReadyByPlayer, setCameraReadyByPlayer] = useState<Record<PlayerId, boolean>>({ PLAYER_A: false, PLAYER_B: false });
@@ -397,7 +400,9 @@ export function App() {
           ? <div className="arena-lite-bg" aria-hidden="true" />
           : <Arena state={arenaState} playerId={myPlayerId} enemyColor={arenaEncounter.color} shielded={arenaShielded} onAssetLoaded={onAssetLoaded} onAssetError={onAssetError} />}
 
-        {!lightweightTestMode && <StartupLoader loadedAssets={loadedStartupAssetCount} totalAssets={STARTUP_ASSET_URLS.length} />}
+        {!lightweightTestMode && <StartupLoader loadedAssets={loadedStartupAssetCount} totalAssets={STARTUP_ASSET_URLS.length} onComplete={finishStartup} />}
+
+        <RotatePrompt ready={startupComplete} />
 
         <header className="game-header">
           <h1>Spell<span>Brawl</span></h1>
