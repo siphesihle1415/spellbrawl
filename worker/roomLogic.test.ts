@@ -44,6 +44,49 @@ function messagesOf(connection: FakeConnection): unknown[] {
 }
 
 describe("RoomLogic", () => {
+  it("ignores non-object JSON and invalid gestures, and binds omitted player identities", () => {
+    const room = new FakeRoom();
+    const logic = new RoomLogic(room);
+    const host = new FakeConnection("host");
+    const guest = new FakeConnection("guest");
+    room.add(host); logic.onConnect(host);
+    room.add(guest); logic.onConnect(guest);
+    const before = host.sent.length;
+    for (const payload of ["null", "[]", "42", '{"type":"GESTURE","gesture":"INVALID"}', '{"type":"UNKNOWN"}']) {
+      expect(() => logic.onMessage(payload, guest)).not.toThrow();
+    }
+    expect(host.sent).toHaveLength(before);
+    logic.onMessage('{"type":"GESTURE","gesture":"FIST","at":1}', guest);
+    expect(messagesOf(host)).toContainEqual({ type: "GESTURE", gesture: "FIST", at: 1, playerId: "PLAYER_B" });
+  });
+
+  it("does not let guests overwrite the host's generated dialogue", () => {
+    const room = new FakeRoom();
+    const logic = new RoomLogic(room);
+    const host = new FakeConnection("host");
+    const guest = new FakeConnection("guest");
+    room.add(host); logic.onConnect(host);
+    room.add(guest); logic.onConnect(guest);
+    const payload = JSON.stringify({ type: "DIALOGUE_SYNC", round: "EMBERMAW", lines: ["a", "b", "c"] });
+    logic.onMessage(payload, guest);
+    expect(host.sent).not.toContain(payload);
+    logic.onMessage(payload, host);
+    expect(guest.sent).toContain(payload);
+  });
+
+  it("assigns a vacant host slot without duplicating the surviving guest's identity", () => {
+    const room = new FakeRoom();
+    const logic = new RoomLogic(room);
+    const host = new FakeConnection("host");
+    const guest = new FakeConnection("guest");
+    room.add(host); logic.onConnect(host);
+    room.add(guest); logic.onConnect(guest);
+    room.remove(host.id); logic.onClose(host);
+    const replacement = new FakeConnection("replacement");
+    room.add(replacement); logic.onConnect(replacement);
+    expect(messagesOf(replacement)).toContainEqual({ type: "ROLE_ASSIGNED", playerId: "PLAYER_A", isHost: true });
+  });
+
   it("tells a late-joining guest that the host already signaled ready", () => {
     const room = new FakeRoom();
     // room.getConnections() must reflect membership at connect time, same as the real Durable Object.

@@ -123,7 +123,7 @@ const handleBossGesture = (
   }
 
   if (state.phase === "CORE_PHASE" && firebolt) {
-    return { ...state, phase: "FUSION_FINISHER", recentGestures: [], message: "Bind the star: Player 1 holds FIST, Player 2 PINCHES, then Player 1 opens their palm." };
+    return withEffect({ ...state, phase: "FUSION_FINISHER", recentGestures: [], message: "Bind the star: Player 1 holds FIST, Player 2 PINCHES, then Player 1 opens their palm." }, "FIREBOLT", playerId);
   }
 
   if (state.phase === "FUSION_FINISHER") {

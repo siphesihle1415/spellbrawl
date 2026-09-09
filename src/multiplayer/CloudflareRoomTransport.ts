@@ -33,23 +33,30 @@ export class CloudflareRoomTransport implements RoomTransport {
       // Attached synchronously at socket creation (not after connect() resolves) so no
       // message sent immediately by the server's onConnect handler can be missed.
       socket.addEventListener("message", (message: MessageEvent<string>) => {
+        if (this.socket !== socket) return;
         let event: SemanticRoomEvent;
         try {
           event = JSON.parse(message.data) as SemanticRoomEvent;
         } catch {
           return; // ignore a malformed frame rather than throwing inside the listener
         }
+        if (!event || typeof event !== "object" || typeof event.type !== "string") return;
+        if (event.type === "ROLE_ASSIGNED") {
+          clearTimeout(timeout);
+          resolve();
+        }
         this.listeners.forEach((listener) => listener(event));
       });
 
-      socket.addEventListener(
-        "open",
-        () => {
+      // An open WebSocket is not acceptance: full rooms immediately close it.
+      socket.addEventListener("close", (event: CloseEvent) => {
+        if (event.code === 4000) {
           clearTimeout(timeout);
-          resolve();
-        },
-        { once: true },
-      );
+          socket.close();
+          if (this.socket === socket) this.socket = null;
+          reject(new Error("Room full. Try another code or create a new room."));
+        }
+      });
     });
   }
 
