@@ -201,6 +201,7 @@
 
 .spell-help-overlay { position: fixed; z-index: 70; inset: 0; display: grid; place-items: center; background: #03030bd9; padding: 16px; backdrop-filter: blur(14px); }
 .spell-help-panel { width: min(1400px, 100%); max-height: calc(100dvh - 32px); overflow: auto; border: 1px solid #4b385f; background: #03070bf5; box-shadow: 0 24px 80px #000; padding: 12px; scrollbar-color: #554366 #09080d; }
+.spell-help-overlay { margin: 0; width: 100%; height: 100%; max-width: none; max-height: none; border: 0; color: inherit; }
 .spell-help-heading { display: flex; align-items: center; justify-content: space-between; padding: 0 3px 10px; }
 .spell-help-heading small { color: #a78dbe; font-size: .55rem; letter-spacing: .18em; text-transform: uppercase; }
 .spell-help-heading h2 { margin: 2px 0 0; font-family: var(--font-display); font-size: 1.4rem; text-transform: uppercase; }
@@ -413,15 +414,19 @@
   .player-cameras { right: 8px; bottom: 8px; left: 8px; gap: 8px; }
   .hand-card { width: calc(50vw - 12px); padding: 6px; }
   .hand-card > p { display: none; }
-  .playground-heading { top: 58px; right: 8px; left: 8px; max-width: none; padding: 9px; }
+  .spell-playground-ui { padding: 58px 8px 0; }
+  .playground-heading { position: relative; top: auto; right: auto; left: auto; max-width: none; padding: 9px; }
   .playground-heading h2 { font-size: .9rem; }
   .playground-heading p { font-size: .54rem; }
-  .playground-spell-picker { top: 155px; right: 8px; left: 8px; width: auto; padding: 7px; }
+  .playground-spell-picker { position: relative; top: auto; right: auto; left: auto; width: auto; padding: 7px; margin-top: 8px; max-height: calc(100dvh - 330px); overflow: auto; }
+  .spell-playground-ui .move-menu { top: auto; bottom: 8px; width: calc(50vw - 12px); }
+  .spell-playground-ui .compact-moves { display: none; }
+  .spell-playground-ui .combat-message { bottom: 160px; }
   .playground-spell-picker > button { padding: 5px 7px; font-size: .47rem; }
   .playground-recipe { gap: 4px; padding-top: 5px; }
   .playground-recipe small { display: none; }
   .playground-camera { bottom: 8px; left: 8px; }
-  .playground-camera .hand-card { width: min(210px, calc(100vw - 16px)); }
+  .playground-camera .hand-card { width: min(210px, calc(50vw - 12px)); }
   .encounter-dialogue, .round-complete { padding: 16px; }
   .combat-message { bottom: 122px; width: calc(100% - 16px); padding: 8px; font-size: .64rem; }
 }

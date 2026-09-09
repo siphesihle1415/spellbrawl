@@ -75,6 +75,7 @@ export function RoomGate({
           className="w-[220px] cursor-pointer rounded-full border border-[#70efb0] bg-[#11271d] px-[22px] py-3 font-bold text-[#baf7d5] transition-transform hover:scale-105"
           type="button"
           onClick={onTestSpells}
+          disabled={connection.status === "CONNECTING"}
         >
           Practice Spells
         </button>

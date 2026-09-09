@@ -21,13 +21,12 @@ export class RoomLogic {
   constructor(private readonly room: Room) {}
 
   onConnect(connection: Connection): void {
-    const connections = [...this.room.getConnections()];
-    if (connections.length > ROOM_CAPACITY) {
+    if (this.playerIdByConnectionId.size >= ROOM_CAPACITY) {
       connection.close(4000, "Room full");
       return;
     }
 
-    const isHost = connections.length === 1;
+    const isHost = ![...this.playerIdByConnectionId.values()].includes("PLAYER_A");
     const playerId: PlayerId = isHost ? "PLAYER_A" : "PLAYER_B";
     this.playerIdByConnectionId.set(connection.id, playerId);
     connection.send(JSON.stringify({ type: "ROLE_ASSIGNED", playerId, isHost }));
@@ -47,9 +46,11 @@ export class RoomLogic {
     const senderPlayerId = this.playerIdByConnectionId.get(sender.id);
     if (senderPlayerId === undefined) return; // never accepted (e.g. rejected 3rd connection)
 
-    let event: { type: string; playerId?: PlayerId; ready?: boolean };
+    let event: Record<string, unknown>;
     try {
-      event = JSON.parse(message) as { type: string; playerId?: PlayerId; ready?: boolean };
+      const parsed: unknown = JSON.parse(message);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return;
+      event = parsed as Record<string, unknown>;
     } catch {
       return; // tolerate a malformed/binary frame instead of throwing out of the relay
     }
@@ -61,14 +62,20 @@ export class RoomLogic {
 
     // State and Director configuration are host-authoritative. A guest must not be able to
     // forge either the combat state or the presentation shared by the room.
-    if ((event.type === "STATE_SYNC" || event.type === "DIRECTOR_SYNC") && senderPlayerId !== "PLAYER_A") return;
+    if ((event.type === "STATE_SYNC" || event.type === "DIRECTOR_SYNC" || event.type === "DIALOGUE_SYNC") && senderPlayerId !== "PLAYER_A") return;
+    const playerEvents = ["PLAYER_READY", "CAMERA_READY", "GESTURE", "GESTURE_END", "PROGRESSION_CHOICE", "SESSION_END", "ROUND_READY"];
+    const hostEvents = ["STATE_SYNC", "DIRECTOR_SYNC", "DIALOGUE_SYNC"];
+    if (typeof event.type !== "string" || (!playerEvents.includes(event.type) && !hostEvents.includes(event.type))) return;
     if (event.type === "CAMERA_READY" && typeof event.ready !== "boolean") return;
+    if (event.type === "GESTURE" && (typeof event.gesture !== "string" || !["FIST", "OPEN_PALM", "POINT", "PINCH"].includes(event.gesture))) return;
+    if (event.type === "ROUND_READY" && (typeof event.round !== "string" || !["EMBERMAW", "SHARD_WARDEN", "HEXWYRM"].includes(event.round))) return;
+    if (event.type === "PROGRESSION_CHOICE" && event.choice !== "CONTINUE" && event.choice !== "EXIT") return;
 
     // The server is the source of truth for identity: bind any player-scoped message to the
     // sender's assigned role so a client can't drive the other player's inputs (or fabricate
     // solo "co-op" combos) by putting a foreign playerId in the payload.
     let outgoing = message;
-    if (event.playerId !== undefined) {
+    if (playerEvents.includes(event.type)) {
       event.playerId = senderPlayerId;
       outgoing = JSON.stringify(event);
     }

@@ -114,7 +114,9 @@ export function App() {
       await transport.connect(code);
     } catch (error) {
       setConnectError(
-        error instanceof Error && error.message.includes("Timed out")
+        error instanceof Error && error.message.startsWith("Room full")
+          ? error.message
+          : error instanceof Error && error.message.includes("Timed out")
           ? "Room server unavailable. For local testing, start the app with npm run dev."
           : "Could not reach the room. Check the code and try again.",
       );

@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { SHIELD_WINDOW_MS } from "../game/engine";
 import type { GameState, Gesture, PlayerId } from "../game/types";
@@ -72,6 +72,7 @@ function DetailedSpell({ move, index, available, active, progress }: { move: Mov
 
 export function MoveMenu({ state, playerId, now }: { state: GameState; playerId: PlayerId; now: number }) {
   const [helpOpen, setHelpOpen] = useState(false);
+  const helpDialog = useRef<HTMLDialogElement>(null);
   const moveStates = moves.map((move) => {
     const available = state.status === "PLAYING" && move.available(state);
     const progress = available ? moveProgress(move, state, playerId, now) : 0;
@@ -80,9 +81,11 @@ export function MoveMenu({ state, playerId, now }: { state: GameState; playerId:
 
   useEffect(() => {
     if (!helpOpen) return;
-    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setHelpOpen(false); };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
+    const opener = document.activeElement;
+    helpDialog.current?.showModal();
+    return () => {
+      if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
+    };
   }, [helpOpen]);
 
   return (
@@ -103,7 +106,7 @@ export function MoveMenu({ state, playerId, now }: { state: GameState; playerId:
 
       {/* Escape the playground's stacking context so help covers the HUD. */}
       {helpOpen && createPortal(
-        <div className="spell-help-overlay" role="dialog" aria-modal="true" aria-label="Move help">
+        <dialog ref={helpDialog} className="spell-help-overlay" aria-label="Move help" onCancel={(event) => { event.preventDefault(); setHelpOpen(false); }}>
           <section className="spell-help-panel">
             <header className="spell-help-heading"><div><small>SpellBrawl field guide</small><h2>Move help</h2></div><button type="button" onClick={() => setHelpOpen(false)} aria-label="Close move help">Close ×</button></header>
             <div className="help-spell-grid">{moveStates.map((moveState, index) => <DetailedSpell key={moveState.move.id} index={index} {...moveState} />)}</div>
@@ -112,7 +115,7 @@ export function MoveMenu({ state, playerId, now }: { state: GameState; playerId:
               <span><b>P1</b> = Player 1</span><span><b>P2</b> = Player 2</span>
             </footer>
           </section>
-        </div>,
+        </dialog>,
         document.body,
       )}
     </>

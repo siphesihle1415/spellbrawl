@@ -81,6 +81,8 @@ describe("gameReducer", () => {
     gesture("PLAYER_A", "POINT"); gesture("PLAYER_B", "PINCH");
     gesture("PLAYER_A", "POINT"); gesture("PLAYER_B", "PINCH");
     gesture("PLAYER_A", "FIST"); gesture("PLAYER_A", "OPEN_PALM");
+    expect(state.phase).toBe("FUSION_FINISHER");
+    expect(state.effect).toMatchObject({ kind: "FIREBOLT", playerId: "PLAYER_A" });
     gesture("PLAYER_A", "FIST"); gesture("PLAYER_B", "PINCH"); gesture("PLAYER_A", "OPEN_PALM");
     expect(state.status).toBe("MONSTER_DEFEATED");
     expect(state.effect?.kind).toBe("STARFALL");
