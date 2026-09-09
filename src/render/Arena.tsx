@@ -1,9 +1,9 @@
 import { PointerLockControls, Sparkles, useAnimations, useGLTF } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Component, memo, Suspense, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from "react";
+import { Component, memo, Suspense, useEffect, useMemo, useRef, type ErrorInfo, type ReactNode } from "react";
 import { AdditiveBlending, BackSide, LoopOnce, MathUtils, Mesh, Vector3, type AnimationAction, type AnimationClip, type Group, type Object3D, type PointLight } from "three";
 import { ARENA_SCENE_URL, arenaAssetUrlsForRound } from "../game/assets";
-import { DEFEAT_HOLD_MS, EMBERMAW_ANIMATED_TRANSFORM, EMBERMAW_ANIMATION_URLS, HEXWYRM_ANIMATED_TRANSFORM, HEXWYRM_ANIMATION_URLS, ROUND_ANIMATION_URLS, SHARD_WARDEN_ANIMATED_TRANSFORM, SHARD_WARDEN_ANIMATION_URLS } from "../game/monsters";
+import { EMBERMAW_ANIMATED_TRANSFORM, EMBERMAW_ANIMATION_URLS, HEXWYRM_ANIMATED_TRANSFORM, HEXWYRM_ANIMATION_URLS, ROUND_ANIMATION_URLS, SHARD_WARDEN_ANIMATED_TRANSFORM, SHARD_WARDEN_ANIMATION_URLS } from "../game/monsters";
 import type { CombatEffect, GameState, PlayerId } from "../game/types";
 import { FireballEffect } from "./FireballEffect";
 import { tookNonFatalHit } from "./monsterReaction";
@@ -349,7 +349,7 @@ function AnimatedEmbermaw({ state, color }: { state: GameState; color: string })
     const previous = prev.current;
     // Clearing the tutorial re-enters EMBERMAW without changing `round`, so this component
     // survives the transition still clamped on falling_down. Rising HP means a fresh encounter.
-    if (state.enemyHp > previous.enemyHp) {
+    if (previous.round === state.round && state.enemyHp > previous.enemyHp) {
       defeatedRef.current = false;
       entranceStartAt.current = performance.now();
       crossfadeTo(actions, EMBERMAW_CLIP.walking, { once: false });
@@ -357,7 +357,7 @@ function AnimatedEmbermaw({ state, color }: { state: GameState; color: string })
     if (tookNonFatalHit(previous, state, "EMBERMAW")) {
       crossfadeTo(actions, EMBERMAW_CLIP.zombieScream, { once: true });
     }
-    if ((previous.round === "EMBERMAW" && state.round !== "EMBERMAW") || (previous.status !== "MONSTER_DEFEATED" && state.status === "MONSTER_DEFEATED")) {
+    if (previous.status !== "MONSTER_DEFEATED" && state.status === "MONSTER_DEFEATED") {
       defeatedRef.current = true;
       crossfadeTo(actions, EMBERMAW_CLIP.fallingDown, { once: true, clampWhenFinished: true });
     }
@@ -449,7 +449,7 @@ function AnimatedShardWarden({ state, color }: { state: GameState; color: string
     if (state.round === "SHARD_WARDEN" && previous.round === "SHARD_WARDEN" && state.enemyHp < previous.enemyHp && state.enemyHp > 0) {
       crossfadeTo(actions, SHARD_WARDEN_CLIP.skill03, { once: true });
     }
-    if ((previous.round === "SHARD_WARDEN" && state.round !== "SHARD_WARDEN") || (previous.status !== "MONSTER_DEFEATED" && state.status === "MONSTER_DEFEATED")) {
+    if (previous.status !== "MONSTER_DEFEATED" && state.status === "MONSTER_DEFEATED") {
       defeatedRef.current = true;
       crossfadeTo(actions, SHARD_WARDEN_CLIP.shotInTheBackAndFall, { once: true, clampWhenFinished: true });
     }
@@ -617,27 +617,13 @@ class ArenaErrorBoundary extends Component<{ children: ReactNode; resetKey: stri
 // Takes `shielded` as a boolean instead of App.tsx's 100ms `now` clock, which used to reconcile
 // this whole react-three-fiber tree ten times a second.
 function ArenaScene({ state, playerId, enemyColor, shielded = false, preview = false, resetKey = 0, onAssetLoaded, onAssetError }: { state: GameState; playerId: PlayerId; enemyColor: string; shielded?: boolean; preview?: boolean; resetKey?: number; onAssetLoaded?: (assetUrl: string) => void; onAssetError?: (error: Error) => void }) {
-  const [visibleRound, setVisibleRound] = useState(state.round);
+  // Progression already holds MONSTER_DEFEATED, then waits for both players to
+  // Continue. Switch model and camera with the state: retaining the old model
+  // would feed it the next encounter's HP and restart its entrance/death clips.
+  const visibleRound = state.round;
   const roomX = ROOM_CAMERA_X[visibleRound];
   const cameraX = playerCameraX(roomX, playerId, preview);
   const requiredAssets = useMemo(() => arenaAssetUrlsForRound(state.round), [state.round]);
-
-  useEffect(() => {
-    if (visibleRound === state.round) return;
-    if (state.status === "DIALOGUE") {
-      setVisibleRound(state.round);
-      return;
-    }
-    const holdMs = DEFEAT_HOLD_MS[visibleRound];
-    const reveal = () => {
-      setVisibleRound(state.round);
-    };
-    if (holdMs !== undefined) {
-      const timer = setTimeout(reveal, holdMs);
-      return () => clearTimeout(timer);
-    }
-    reveal();
-  }, [state.round, visibleRound]);
 
   return (
     <ArenaErrorBoundary resetKey={`${state.round}-${resetKey}`} onError={onAssetError}>
