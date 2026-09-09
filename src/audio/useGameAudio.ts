@@ -85,7 +85,6 @@ export function preloadAudioAssets(urls: readonly string[], onLoaded: (url: stri
 }
 
 export function useGameAudio(effectId: number | undefined, effectKind: CombatEffectKind | undefined, status: GameStatus) {
-  const music = useRef<HTMLAudioElement | null>(null);
   const previousStatus = useRef(status);
 
   useEffect(() => {
@@ -94,15 +93,32 @@ export function useGameAudio(effectId: number | undefined, effectKind: CombatEff
     audio.volume = 0.24;
     audio.preload = "auto";
     audio.load();
-    music.current = audio;
+    let disposed = false;
+    const startMusic = () => {
+      if (!audio.paused) return;
+      void audio.play().catch((error: unknown) => {
+        // Autoplay may need a user gesture; the input listeners retry below.
+        if (disposed || (error instanceof Error && error.name === "NotAllowedError")) return;
+        reportPlaybackError("/audio/gamesong.mp3", error);
+      });
+    };
 
     const click = (event: PointerEvent) => {
       if ((event.target as Element | null)?.closest("button")) synthesize("CLICK");
-      if (audio.paused) void audio.play().catch((error: unknown) => reportPlaybackError("/audio/gamesong.mp3", error));
+      startMusic();
     };
+    startMusic();
     window.addEventListener("pointerdown", click);
+    // Touch activation is granted on release; keyboard users may never point.
+    window.addEventListener("pointerup", startMusic, true);
+    window.addEventListener("click", startMusic, true);
+    window.addEventListener("keydown", startMusic, true);
     return () => {
+      disposed = true;
       window.removeEventListener("pointerdown", click);
+      window.removeEventListener("pointerup", startMusic, true);
+      window.removeEventListener("click", startMusic, true);
+      window.removeEventListener("keydown", startMusic, true);
       audio.pause();
     };
   }, []);
