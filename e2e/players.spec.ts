@@ -53,10 +53,22 @@ test("two players see the combat HUD, synced gestures, and shared session exit",
   await guest.getByRole("button", { name: "Join" }).click();
 
   await expect(host.getByRole("button", { name: "Waiting for cameras" })).toBeDisabled();
+  for (const player of [host, guest]) {
+    await expect(player.locator(".enemy-hud, .team-status, .combat-message")).toHaveCount(0);
+    await expect(player.getByLabel("Spell moves")).toHaveCount(0);
+    await expect(player.locator(".player-cameras")).toBeVisible();
+  }
   await host.getByLabel("Player 1 hand tracking").getByRole("button", { name: "Grant camera access" }).click();
+  await expect(host.getByText("Cameras ready · 1 / 2", { exact: true })).toBeVisible();
+  await expect(host.getByLabel("Spell moves")).toHaveCount(0);
+  await expect(guest.getByLabel("Spell moves")).toHaveCount(0);
   await guest.getByLabel("Player 2 hand tracking").getByRole("button", { name: "Grant camera access" }).click();
   await expect(host.getByText("Cameras ready · 2 / 2", { exact: true })).toBeVisible();
   await expect(host.getByRole("button", { name: "Start" })).toBeEnabled();
+  for (const player of [host, guest]) {
+    await expect(player.locator(".enemy-hud, .team-status, .combat-message")).toHaveCount(0);
+    await expect(player.getByLabel("Spell moves")).toHaveCount(0);
+  }
   await host.screenshot({ path: "test-results/connected-lobby.png", fullPage: true });
 
   await host.getByRole("button", { name: "Start" }).click();

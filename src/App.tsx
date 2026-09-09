@@ -420,28 +420,32 @@ export function App() {
           <RoomGate connection={connection} errorMessage={connectError} onCreate={connectTransport} onJoin={connectTransport} onTestSpells={openSpellPlayground} />
         ) : (
           <>
-            <div className="enemy-hud">
-              <small className="tracking-[0.15em] text-[#b8a8d2] uppercase">{displayEncounter.title}</small>
-              <h2 className="font-display my-1 text-[clamp(1.4rem,3vw,2.2rem)]">{displayEncounter.name}</h2>
-              <div className="h-[7px] rounded-[9px] border border-[#6c567e] bg-[#110d19] p-px">
-                <span className="block h-full rounded-[7px] bg-linear-to-r from-[#ff554a] to-[#ffb14a] transition-[width] duration-300" style={{ width: `${progress}%` }} />
-              </div>
-              <p className="m-[5px] text-[0.7rem] text-[#ac9dbf] uppercase">{display.enemyHp} / {display.enemyMaxHp} HP · {display.phase.replaceAll("_", " ")}</p>
-              {state.phase === "FUSION_FINISHER" && (
-                <p className="mx-auto mt-2 max-w-[36rem] rounded-lg border border-[#4d3b65] bg-[#0c0915dd] px-3 py-2 text-xs text-[#e5d5fa]">
-                  <strong className="text-[#ffcb76]">{configuration.finisher.name}:</strong> {configuration.finisher.clue}
-                </p>
-              )}
-            </div>
+            {display.status !== "LOBBY" && (
+              <>
+                <div className="enemy-hud">
+                  <small className="tracking-[0.15em] text-[#b8a8d2] uppercase">{displayEncounter.title}</small>
+                  <h2 className="font-display my-1 text-[clamp(1.4rem,3vw,2.2rem)]">{displayEncounter.name}</h2>
+                  <div className="h-[7px] rounded-[9px] border border-[#6c567e] bg-[#110d19] p-px">
+                    <span className="block h-full rounded-[7px] bg-linear-to-r from-[#ff554a] to-[#ffb14a] transition-[width] duration-300" style={{ width: `${progress}%` }} />
+                  </div>
+                  <p className="m-[5px] text-[0.7rem] text-[#ac9dbf] uppercase">{display.enemyHp} / {display.enemyMaxHp} HP · {display.phase.replaceAll("_", " ")}</p>
+                  {state.phase === "FUSION_FINISHER" && (
+                    <p className="mx-auto mt-2 max-w-[36rem] rounded-lg border border-[#4d3b65] bg-[#0c0915dd] px-3 py-2 text-xs text-[#e5d5fa]">
+                      <strong className="text-[#ffcb76]">{configuration.finisher.name}:</strong> {configuration.finisher.clue}
+                    </p>
+                  )}
+                </div>
 
-            <div className="team-status">
-              <div>{state.tutorial ? "Practice round" : `Round ${display.roundNumber} / 3`}</div>
-              <div className="shared-hp"><span><b>Shared HP</b><em>{state.sharedHp} / 5</em></span><div><i style={{ width: `${state.sharedHp * 20}%` }} /></div></div>
-            </div>
+                <div className="team-status">
+                  <div>{state.tutorial ? "Practice round" : `Round ${display.roundNumber} / 3`}</div>
+                  <div className="shared-hp"><span><b>Shared HP</b><em>{state.sharedHp} / 5</em></span><div><i style={{ width: `${state.sharedHp * 20}%` }} /></div></div>
+                </div>
 
-            <div className="combat-message">{message}</div>
+                <div className="combat-message">{message}</div>
 
-            <MoveMenu state={state} playerId={myPlayerId} now={now} />
+                <MoveMenu state={state} playerId={myPlayerId} now={now} />
+              </>
+            )}
 
             <div className={`player-cameras ${state.status === "LOBBY" ? "is-lobby" : ""}`}>
               <WebcamPreview
