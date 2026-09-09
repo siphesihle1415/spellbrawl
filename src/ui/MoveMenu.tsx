@@ -1,4 +1,5 @@
 import { useEffect, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import { SHIELD_WINDOW_MS } from "../game/engine";
 import type { GameState, Gesture, PlayerId } from "../game/types";
 import { GestureGlyph, gestureLabel } from "./GestureGlyph";
@@ -100,7 +101,8 @@ export function MoveMenu({ state, playerId, now }: { state: GameState; playerId:
         </div>
       </aside>
 
-      {helpOpen && (
+      {/* Escape the playground's stacking context so help covers the HUD. */}
+      {helpOpen && createPortal(
         <div className="spell-help-overlay" role="dialog" aria-modal="true" aria-label="Move help">
           <section className="spell-help-panel">
             <header className="spell-help-heading"><div><small>SpellBrawl field guide</small><h2>Move help</h2></div><button type="button" onClick={() => setHelpOpen(false)} aria-label="Close move help">Close ×</button></header>
@@ -110,7 +112,8 @@ export function MoveMenu({ state, playerId, now }: { state: GameState; playerId:
               <span><b>P1</b> = Player 1</span><span><b>P2</b> = Player 2</span>
             </footer>
           </section>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

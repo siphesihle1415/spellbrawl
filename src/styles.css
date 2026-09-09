@@ -263,7 +263,7 @@
 .player-cameras.is-lobby { z-index: 20; }
 
 .spell-playground-ui { position: absolute; z-index: 18; inset: 0; pointer-events: none; }
-.spell-playground-ui .move-menu, .spell-playground-ui .spell-help-overlay { pointer-events: auto; }
+.spell-playground-ui .move-menu { pointer-events: auto; }
 .playground-heading {
   position: absolute;
   top: 78px;
