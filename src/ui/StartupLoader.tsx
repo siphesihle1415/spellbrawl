@@ -37,9 +37,9 @@ export function StartupLoader({ loadedAssets, totalAssets }: { loadedAssets: num
   const status = loadedAssets === 0 ? "Opening the rift…" : `Binding arena relics · ${loadedAssets} / ${totalAssets}`;
 
   return (
-    <div className="absolute inset-0 z-50 grid place-items-center overflow-hidden bg-[#08060f] px-6 text-center">
+    <div className="startup-loader absolute inset-0 z-50 grid place-items-center bg-[#08060f] px-6 text-center">
       <div className="absolute -top-40 left-1/2 size-[34rem] -translate-x-1/2 rounded-full bg-[#6134b4]/20 blur-3xl" />
-      <div className="relative w-full max-w-xl">
+      <div className="startup-content relative w-full max-w-xl">
         <p className="mb-3 text-[0.7rem] tracking-[0.28em] text-[#ba9ce8] uppercase">SpellBrawl</p>
         <h2 className="font-display m-0 text-[clamp(2.4rem,8vw,5.5rem)] leading-none">Summoning the arena</h2>
         <div className="mx-auto mt-7 flex w-24 justify-between" aria-hidden="true">
