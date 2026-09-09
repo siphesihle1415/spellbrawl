@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { expectAudioFile, expectAudioTone, observeAudio } from "./audioProbe";
 
 test("startup loader waits for only the initial arena assets", async ({ page }) => {
   const heldModelRequests: import("@playwright/test").Route[] = [];
@@ -42,6 +43,8 @@ test("two players see the combat HUD, synced gestures, and shared session exit",
   const guestContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const host = await hostContext.newPage();
   const guest = await guestContext.newPage();
+  await observeAudio(host);
+  await observeAudio(guest);
 
   await host.goto("/?lite=1");
   await host.getByRole("button", { name: "Create room" }).click();
@@ -104,9 +107,13 @@ test("two players see the combat HUD, synced gestures, and shared session exit",
   await host.keyboard.press("1");
   await host.keyboard.press("2");
   await expect(host.getByText("1 / 2 HP", { exact: false })).toBeVisible();
+  await expectAudioFile(host, "/audio/fireball.mp3");
+  await expectAudioFile(guest, "/audio/fireball.mp3");
   const guestShieldMove = guest.locator(".compact-spell").filter({ hasText: "Arcane Shield" });
   await host.keyboard.press("2");
   await expect(guestShieldMove).toHaveClass(/is-active/);
+  await expectAudioFile(host, "/audio/shield.mp3");
+  await expectAudioFile(guest, "/audio/shield.mp3");
   await expect(guestShieldMove).not.toHaveClass(/is-active/, { timeout: 5_000 });
   await host.getByRole("button", { name: "Exit lobby" }).click();
   await expect(guest.getByText("The arena session was ended by the other player.")).toBeVisible();
@@ -116,6 +123,7 @@ test("two players see the combat HUD, synced gestures, and shared session exit",
 });
 
 test("official spell playground exposes move help, one tracker, and every spell", async ({ page }) => {
+  await observeAudio(page);
   await page.goto("/?lite=1");
   await page.getByRole("button", { name: "Practice Spells" }).click();
 
@@ -134,12 +142,14 @@ test("official spell playground exposes move help, one tracker, and every spell"
   await expect(shieldMove).not.toHaveClass(/is-active/);
   await page.keyboard.press("2");
   await expect(shieldMove).toHaveClass(/is-active/);
+  await expectAudioFile(page, "/audio/shield.mp3");
   await expect(shieldMove).not.toHaveClass(/is-active/, { timeout: 5_000 });
 
   await spellPicker.getByRole("button", { name: "Firebolt", exact: true }).click();
   await page.keyboard.press("1");
   await page.keyboard.press("2");
   await expect(page.getByText("Firebolt launched!", { exact: true })).toBeVisible();
+  await expectAudioFile(page, "/audio/fireball.mp3");
 
   const remainingSpells = [
     { name: "Starfall", keys: ["1", "4", "2"], message: "Starfall called down!" },
@@ -154,6 +164,9 @@ test("official spell playground exposes move help, one tracker, and every spell"
     await expect(page.getByText(spell.message, { exact: true })).toBeVisible();
   }
   await page.screenshot({ path: "test-results/spell-playground.png", fullPage: true });
+  await expectAudioTone(page, 90);
+  await expectAudioTone(page, 320);
+  await expectAudioTone(page, 180);
 
   await page.getByRole("button", { name: "Exit playground" }).click();
   await expect(page.getByRole("heading", { name: "Enter the arena" })).toBeVisible();

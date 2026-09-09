@@ -59,7 +59,8 @@ export function App() {
   const spellPlaygroundRef = useRef(false);
   const hasHostRole = (connection.status === "WAITING_FOR_PEER" || connection.status === "CONNECTED") && connection.isHost;
   const { configuration, status: directorStatus, applyRemoteConfiguration } = useRunConfiguration(hasHostRole);
-  useGameAudio(state.effect?.id, state.effect?.kind, state.status);
+  const audioState = isSpellPlayground ? playgroundState : state;
+  useGameAudio(audioState.effect?.id, audioState.effect?.kind, audioState.status);
 
   const encounter = encounterForRound(configuration, state.round);
   const displayEncounter = encounterForRound(configuration, display.round);
