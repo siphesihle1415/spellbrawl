@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { requestLoaderFacts } from "../director/LoaderFactsClient";
 import { fallbackLoaderFacts } from "../director/loaderFacts";
 
-export function StartupLoader({ loadedAssets, totalAssets }: { loadedAssets: number; totalAssets: number }) {
+export function StartupLoader({ loadedAssets, totalAssets, onComplete }: { loadedAssets: number; totalAssets: number; onComplete?: () => void }) {
   const [complete, setComplete] = useState(false);
   const [minimumElapsed, setMinimumElapsed] = useState(false);
   const [facts, setFacts] = useState<string[]>([...fallbackLoaderFacts]);
@@ -15,8 +15,11 @@ export function StartupLoader({ loadedAssets, totalAssets }: { loadedAssets: num
   }, []);
 
   useEffect(() => {
-    if (minimumElapsed && loadedAssets >= totalAssets) setComplete(true);
-  }, [loadedAssets, minimumElapsed, totalAssets]);
+    if (minimumElapsed && loadedAssets >= totalAssets) {
+      setComplete(true);
+      onComplete?.();
+    }
+  }, [loadedAssets, minimumElapsed, totalAssets, onComplete]);
 
   useEffect(() => {
     void requestLoaderFacts().then((result) => {
