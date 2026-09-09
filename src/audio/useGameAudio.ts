@@ -12,6 +12,14 @@ const soundForEffect: Partial<Record<CombatEffectKind, string>> = {
 // Pooled per src so rapid overlapping hits don't each allocate a new HTMLAudioElement.
 const effectPools = new Map<string, HTMLAudioElement[]>();
 
+function reportPlaybackError(source: string, error: unknown) {
+  console.warn("[audio] Playback failed", {
+    source,
+    name: error instanceof Error ? error.name : "UnknownError",
+    message: error instanceof Error ? error.message : String(error),
+  });
+}
+
 function playFile(src: string, volume = 0.7) {
   let pool = effectPools.get(src);
   if (!pool) {
@@ -21,7 +29,7 @@ function playFile(src: string, volume = 0.7) {
   const audio = acquireFromPool(pool, () => new Audio(src));
   audio.currentTime = 0;
   audio.volume = volume;
-  void audio.play().catch(() => undefined);
+  void audio.play().catch((error: unknown) => reportPlaybackError(src, error));
 }
 
 // Shared for the session: browsers cap open AudioContexts, so one per blip eventually kills sound.
@@ -31,7 +39,9 @@ function getAudioContext(): AudioContext | null {
   const AudioContextClass = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!AudioContextClass) return null;
   if (!sharedContext) sharedContext = new AudioContextClass();
-  if (sharedContext.state === "suspended") void sharedContext.resume();
+  if (sharedContext.state === "suspended") {
+    void sharedContext.resume().catch((error: unknown) => reportPlaybackError("synthesizer", error));
+  }
   return sharedContext;
 }
 
@@ -88,7 +98,7 @@ export function useGameAudio(effectId: number | undefined, effectKind: CombatEff
 
     const click = (event: PointerEvent) => {
       if ((event.target as Element | null)?.closest("button")) synthesize("CLICK");
-      if (audio.paused) void audio.play().catch(() => undefined);
+      if (audio.paused) void audio.play().catch((error: unknown) => reportPlaybackError("/audio/gamesong.mp3", error));
     };
     window.addEventListener("pointerdown", click);
     return () => {
